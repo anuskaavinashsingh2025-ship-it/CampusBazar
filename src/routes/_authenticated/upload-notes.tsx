@@ -1,0 +1,412 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useMemo, useState, type FormEvent } from "react";
+import { toast } from "sonner";
+import { ArrowLeft, GraduationCap, Loader2, Upload } from "lucide-react";
+
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
+import type { Database } from "@/integrations/supabase/types";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export const Route = createFileRoute("/_authenticated/upload-notes")({
+  validateSearch: (search) => search as { type?: "sell" | "rent" },
+  head: () => ({
+    meta: [{ title: "Upload notes — CampusBazar" }],
+  }),
+  component: UploadNotesPage,
+});
+
+const SELL_CATEGORIES = [
+  "Handwritten Notes",
+  "Previous Year Questions (PYQs)",
+  "Cheat Sheets",
+  "Textbooks",
+  "Lab Material",
+  "Exam Kits",
+] as const;
+
+const RENT_CATEGORIES = ["Handwritten Notes", "Textbooks", "Lab Material", "Exam Kits"] as const;
+
+const CONDITION_OPTIONS = ["New", "Like New", "Good", "Fair", "Used"] as const;
+
+type ConditionOption = (typeof CONDITION_OPTIONS)[number];
+
+type SellerInsertable = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+};
+
+type NotesAssetInsertable = {
+  listing_id: string;
+  kind: "image";
+  storage_path: string;
+  sort_index: number;
+};
+
+const SELLER_PROFILES_TABLE = "seller_profiles" as unknown as keyof Database["public"]["Tables"];
+const NOTES_LISTINGS_TABLE = "notes_listings" as unknown as keyof Database["public"]["Tables"];
+const NOTES_ASSETS_TABLE = "notes_assets" as unknown as keyof Database["public"]["Tables"];
+
+function UploadNotesPage() {
+  const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  const search = Route.useSearch();
+  const type = search.type === "rent" ? "rent" : "sell";
+
+  const categories = type === "rent" ? RENT_CATEGORIES : SELL_CATEGORIES;
+
+  const sellerDisplayName = useMemo(() => {
+    if (profile?.full_name?.trim()) return profile.full_name.trim();
+    return user?.email ?? "seller";
+  }, [profile?.full_name, user?.email]);
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<(typeof categories)[number]>(categories[0]);
+  const [subject, setSubject] = useState("");
+  const [faculty, setFaculty] = useState("");
+  const [semester, setSemester] = useState("");
+  const [branch, setBranch] = useState("");
+
+  const [isDigital, setIsDigital] = useState(true);
+  const [isFree, setIsFree] = useState(false);
+
+  const [dailyRentalPrice, setDailyRentalPrice] = useState<string>("");
+  const [rentalDurationDays, setRentalDurationDays] = useState<string>("");
+  const [condition, setCondition] = useState<ConditionOption>("Good");
+
+  const [previewImages, setPreviewImages] = useState<File[]>([]);
+
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const canSubmit =
+    title.trim().length > 0 &&
+    description.trim().length > 0 &&
+    category.trim().length > 0 &&
+    subject.trim().length > 0 &&
+    (type === "sell" || (Number(dailyRentalPrice) > 0 && Number(rentalDurationDays) > 0)) &&
+    previewImages.length >= 1;
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) {
+      toast.error("Please fill required fields and upload at least 1 preview image.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { data: existingSeller } = await supabase
+        .from(SELLER_PROFILES_TABLE)
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!existingSeller) {
+        const sellerInsert: SellerInsertable = {
+          user_id: user.id,
+          display_name: sellerDisplayName,
+          avatar_url: profile?.avatar_url ?? null,
+        };
+        const { error } = await supabase.from(SELLER_PROFILES_TABLE).insert(sellerInsert);
+        if (error) throw error;
+      }
+
+      const insertPayload = {
+        seller_id: user.id,
+        listing_type: type,
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        subject: subject.trim() || null,
+        faculty: faculty.trim() || null,
+        semester: semester.trim() || null,
+        branch: branch.trim() || null,
+        daily_rental_price: type === "rent" ? Number(dailyRentalPrice) : null,
+        rental_duration_days: type === "rent" ? Number(rentalDurationDays) : null,
+        condition: type === "rent" ? condition : null,
+        is_digital: isDigital,
+        is_free: isFree,
+        status: "available",
+      };
+
+      const { data: inserted, error: insertErr } = await supabase
+        .from(NOTES_LISTINGS_TABLE)
+        .insert(insertPayload)
+        .select("id")
+        .maybeSingle();
+
+      if (insertErr) throw insertErr;
+      if (!inserted?.id) throw new Error("Failed to create notes listing.");
+      const listingId = inserted.id as string;
+
+      const bucket = "notes-assets";
+      const images = previewImages.slice(0, 5);
+      for (let i = 0; i < images.length; i++) {
+        const file = images[i];
+        const objectName = `${listingId}/${i}-${file.name.replaceAll("/", "-")}`;
+        const { error: imgUploadErr } = await supabase.storage
+          .from(bucket)
+          .upload(objectName, file, {
+            upsert: false,
+            contentType: file.type,
+          });
+        if (imgUploadErr) throw imgUploadErr;
+
+        const { error: imgMetaErr } = await supabase.from(NOTES_ASSETS_TABLE).insert({
+          listing_id: listingId,
+          kind: "image",
+          storage_path: objectName,
+          sort_index: i,
+        } satisfies NotesAssetInsertable);
+        if (imgMetaErr) throw imgMetaErr;
+      }
+
+      toast.success("Notes uploaded!");
+      navigate({ to: "/notes/$id", params: { id: listingId } });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not upload notes");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background pb-24">
+      <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
+        <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Back"
+            onClick={() => navigate({ to: "/notes" })}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <Link to="/" className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <GraduationCap className="h-5 w-5" />
+            </span>
+            <span className="text-sm font-bold tracking-tight">
+              Upload notes ({type === "sell" ? "Sell" : "Rent"})
+            </span>
+          </Link>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-4xl px-4 py-6">
+        <Card className="border-border/60">
+          <CardHeader>
+            <CardTitle className="text-xl">Create a notes listing</CardTitle>
+            <CardDescription>
+              Subject is required. Upload preview images only (no PDF needed).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. DBMS Complete Notes"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Include what’s inside, quality, and any rules."
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select value={category} onValueChange={(v) => setCategory(v as typeof category)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject">Subject</Label>
+                  <Input
+                    id="subject"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="Operating Systems"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="faculty">Faculty (optional)</Label>
+                  <Input
+                    id="faculty"
+                    value={faculty}
+                    onChange={(e) => setFaculty(e.target.value)}
+                    placeholder="Dr. Rao"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="semester">Semester (optional)</Label>
+                  <Input
+                    id="semester"
+                    value={semester}
+                    onChange={(e) => setSemester(e.target.value)}
+                    placeholder="5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="branch">Branch (optional)</Label>
+                  <Input
+                    id="branch"
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    placeholder="CSE"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-6">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    id="digital"
+                    checked={isDigital}
+                    onCheckedChange={(v) => setIsDigital(Boolean(v))}
+                  />
+                  <Label htmlFor="digital" className="cursor-pointer">
+                    Digital
+                  </Label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    id="free"
+                    checked={isFree}
+                    onCheckedChange={(v) => setIsFree(Boolean(v))}
+                  />
+                  <Label htmlFor="free" className="cursor-pointer">
+                    Free
+                  </Label>
+                </div>
+              </div>
+
+              {type === "rent" && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="dailyRentalPrice">Daily rental price (INR)</Label>
+                    <Input
+                      id="dailyRentalPrice"
+                      type="number"
+                      min={1}
+                      step="0.01"
+                      value={dailyRentalPrice}
+                      onChange={(e) => setDailyRentalPrice(e.target.value)}
+                      placeholder="60"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="duration">Rental duration (days)</Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      min={1}
+                      value={rentalDurationDays}
+                      onChange={(e) => setRentalDurationDays(e.target.value)}
+                      placeholder="7"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Condition</Label>
+                    <Select
+                      value={condition}
+                      onValueChange={(v) => setCondition(v as ConditionOption)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select condition" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CONDITION_OPTIONS.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Preview images (required, up to 5)</Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => setPreviewImages(Array.from(e.target.files ?? []).slice(0, 5))}
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={submitting}
+                  onClick={() => navigate({ to: "/notes" })}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!canSubmit || submitting} className="gap-2">
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  Upload listing
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}
