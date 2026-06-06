@@ -22,12 +22,15 @@ import { Route as RentIdRouteImport } from './routes/rent.$id'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as NotesIdRouteImport } from './routes/notes.$id'
 import { Route as FoodIdRouteImport } from './routes/food.$id'
+import { Route as AuthenticatedWishlistRouteImport } from './routes/_authenticated/wishlist'
 import { Route as AuthenticatedUploadRentalRouteImport } from './routes/_authenticated/upload-rental'
 import { Route as AuthenticatedUploadProductRouteImport } from './routes/_authenticated/upload-product'
 import { Route as AuthenticatedUploadNotesRequestRouteImport } from './routes/_authenticated/upload-notes-request'
 import { Route as AuthenticatedUploadNotesRouteImport } from './routes/_authenticated/upload-notes'
 import { Route as AuthenticatedUploadFoodRequestRouteImport } from './routes/_authenticated/upload-food-request'
 import { Route as AuthenticatedUploadFoodRouteImport } from './routes/_authenticated/upload-food'
+import { Route as AuthenticatedSellerProfileRouteImport } from './routes/_authenticated/seller-profile'
+import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
@@ -95,6 +98,11 @@ const FoodIdRoute = FoodIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => FoodRoute,
 } as any)
+const AuthenticatedWishlistRoute = AuthenticatedWishlistRouteImport.update({
+  id: '/wishlist',
+  path: '/wishlist',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedUploadRentalRoute =
   AuthenticatedUploadRentalRouteImport.update({
     id: '/upload-rental',
@@ -130,6 +138,17 @@ const AuthenticatedUploadFoodRoute = AuthenticatedUploadFoodRouteImport.update({
   path: '/upload-food',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSellerProfileRoute =
+  AuthenticatedSellerProfileRouteImport.update({
+    id: '/seller-profile',
+    path: '/seller-profile',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -151,12 +170,15 @@ export interface FileRoutesByFullPath {
   '/rent': typeof RentRouteWithChildren
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/profile': typeof AuthenticatedProfileRoute
+  '/seller-profile': typeof AuthenticatedSellerProfileRoute
   '/upload-food': typeof AuthenticatedUploadFoodRoute
   '/upload-food-request': typeof AuthenticatedUploadFoodRequestRoute
   '/upload-notes': typeof AuthenticatedUploadNotesRoute
   '/upload-notes-request': typeof AuthenticatedUploadNotesRequestRoute
   '/upload-product': typeof AuthenticatedUploadProductRoute
   '/upload-rental': typeof AuthenticatedUploadRentalRoute
+  '/wishlist': typeof AuthenticatedWishlistRoute
   '/food/$id': typeof FoodIdRoute
   '/notes/$id': typeof NotesIdRoute
   '/product/$id': typeof ProductIdRoute
@@ -173,12 +195,15 @@ export interface FileRoutesByTo {
   '/rent': typeof RentRouteWithChildren
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/profile': typeof AuthenticatedProfileRoute
+  '/seller-profile': typeof AuthenticatedSellerProfileRoute
   '/upload-food': typeof AuthenticatedUploadFoodRoute
   '/upload-food-request': typeof AuthenticatedUploadFoodRequestRoute
   '/upload-notes': typeof AuthenticatedUploadNotesRoute
   '/upload-notes-request': typeof AuthenticatedUploadNotesRequestRoute
   '/upload-product': typeof AuthenticatedUploadProductRoute
   '/upload-rental': typeof AuthenticatedUploadRentalRoute
+  '/wishlist': typeof AuthenticatedWishlistRoute
   '/food/$id': typeof FoodIdRoute
   '/notes/$id': typeof NotesIdRoute
   '/product/$id': typeof ProductIdRoute
@@ -197,12 +222,15 @@ export interface FileRoutesById {
   '/rent': typeof RentRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/_authenticated/seller-profile': typeof AuthenticatedSellerProfileRoute
   '/_authenticated/upload-food': typeof AuthenticatedUploadFoodRoute
   '/_authenticated/upload-food-request': typeof AuthenticatedUploadFoodRequestRoute
   '/_authenticated/upload-notes': typeof AuthenticatedUploadNotesRoute
   '/_authenticated/upload-notes-request': typeof AuthenticatedUploadNotesRequestRoute
   '/_authenticated/upload-product': typeof AuthenticatedUploadProductRoute
   '/_authenticated/upload-rental': typeof AuthenticatedUploadRentalRoute
+  '/_authenticated/wishlist': typeof AuthenticatedWishlistRoute
   '/food/$id': typeof FoodIdRoute
   '/notes/$id': typeof NotesIdRoute
   '/product/$id': typeof ProductIdRoute
@@ -221,12 +249,15 @@ export interface FileRouteTypes {
     | '/rent'
     | '/admin'
     | '/dashboard'
+    | '/profile'
+    | '/seller-profile'
     | '/upload-food'
     | '/upload-food-request'
     | '/upload-notes'
     | '/upload-notes-request'
     | '/upload-product'
     | '/upload-rental'
+    | '/wishlist'
     | '/food/$id'
     | '/notes/$id'
     | '/product/$id'
@@ -243,12 +274,15 @@ export interface FileRouteTypes {
     | '/rent'
     | '/admin'
     | '/dashboard'
+    | '/profile'
+    | '/seller-profile'
     | '/upload-food'
     | '/upload-food-request'
     | '/upload-notes'
     | '/upload-notes-request'
     | '/upload-product'
     | '/upload-rental'
+    | '/wishlist'
     | '/food/$id'
     | '/notes/$id'
     | '/product/$id'
@@ -266,12 +300,15 @@ export interface FileRouteTypes {
     | '/rent'
     | '/_authenticated/admin'
     | '/_authenticated/dashboard'
+    | '/_authenticated/profile'
+    | '/_authenticated/seller-profile'
     | '/_authenticated/upload-food'
     | '/_authenticated/upload-food-request'
     | '/_authenticated/upload-notes'
     | '/_authenticated/upload-notes-request'
     | '/_authenticated/upload-product'
     | '/_authenticated/upload-rental'
+    | '/_authenticated/wishlist'
     | '/food/$id'
     | '/notes/$id'
     | '/product/$id'
@@ -385,6 +422,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FoodIdRouteImport
       parentRoute: typeof FoodRoute
     }
+    '/_authenticated/wishlist': {
+      id: '/_authenticated/wishlist'
+      path: '/wishlist'
+      fullPath: '/wishlist'
+      preLoaderRoute: typeof AuthenticatedWishlistRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/upload-rental': {
       id: '/_authenticated/upload-rental'
       path: '/upload-rental'
@@ -427,6 +471,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUploadFoodRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/seller-profile': {
+      id: '/_authenticated/seller-profile'
+      path: '/seller-profile'
+      fullPath: '/seller-profile'
+      preLoaderRoute: typeof AuthenticatedSellerProfileRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/profile': {
+      id: '/_authenticated/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -447,23 +505,29 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
+  AuthenticatedSellerProfileRoute: typeof AuthenticatedSellerProfileRoute
   AuthenticatedUploadFoodRoute: typeof AuthenticatedUploadFoodRoute
   AuthenticatedUploadFoodRequestRoute: typeof AuthenticatedUploadFoodRequestRoute
   AuthenticatedUploadNotesRoute: typeof AuthenticatedUploadNotesRoute
   AuthenticatedUploadNotesRequestRoute: typeof AuthenticatedUploadNotesRequestRoute
   AuthenticatedUploadProductRoute: typeof AuthenticatedUploadProductRoute
   AuthenticatedUploadRentalRoute: typeof AuthenticatedUploadRentalRoute
+  AuthenticatedWishlistRoute: typeof AuthenticatedWishlistRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedProfileRoute: AuthenticatedProfileRoute,
+  AuthenticatedSellerProfileRoute: AuthenticatedSellerProfileRoute,
   AuthenticatedUploadFoodRoute: AuthenticatedUploadFoodRoute,
   AuthenticatedUploadFoodRequestRoute: AuthenticatedUploadFoodRequestRoute,
   AuthenticatedUploadNotesRoute: AuthenticatedUploadNotesRoute,
   AuthenticatedUploadNotesRequestRoute: AuthenticatedUploadNotesRequestRoute,
   AuthenticatedUploadProductRoute: AuthenticatedUploadProductRoute,
   AuthenticatedUploadRentalRoute: AuthenticatedUploadRentalRoute,
+  AuthenticatedWishlistRoute: AuthenticatedWishlistRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

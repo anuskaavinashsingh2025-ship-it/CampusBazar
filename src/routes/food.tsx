@@ -1,18 +1,30 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GraduationCap, Loader2, Plus, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  GraduationCap,
+  Heart,
+  Loader2,
+  MessageSquare,
+  Plus,
+  Search,
+  ShoppingBag,
+  UtensilsCrossed,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { WishlistButton } from "@/components/wishlist/wishlist-button";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/food")({
   head: () => ({
@@ -32,9 +44,9 @@ type FoodListingRow = {
   status: "available" | "hidden" | "expired" | "sold";
   seller_id: string;
   created_at: string;
+  coverUrl?: string | null;
+  seller?: { display_name: string; avatar_url: string | null; slug: string };
 };
-
-type FoodImageRow = { food_listing_id: string; storage_path: string; sort_index: number };
 
 type FoodRequestRow = {
   id: string;
@@ -47,6 +59,15 @@ type FoodRequestRow = {
   created_at: string;
 };
 
+const FOOD_CATEGORIES = [
+  "Snacks",
+  "Chocolates & Sweets",
+  "Instant Food",
+  "Beverages",
+  "Health & Fitness",
+  "Others",
+] as const;
+
 const FOOD_LISTINGS_TABLE = "food_listings" as unknown as keyof Database["public"]["Tables"];
 const FOOD_IMAGES_TABLE = "food_images" as unknown as keyof Database["public"]["Tables"];
 const FOOD_REQUESTS_TABLE = "food_requests" as unknown as keyof Database["public"]["Tables"];
@@ -54,8 +75,9 @@ const FOOD_REQUESTS_TABLE = "food_requests" as unknown as keyof Database["public
 function FoodHubPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [tab, setTab] = useState<"sell" | "requests">("sell");
+  const [mode, setMode] = useState<"sell" | "requests">("sell");
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   const { data: listings, isLoading: loadingListings } = useQuery({
     queryKey: ["food", "listings"],
@@ -74,25 +96,48 @@ function FoodHubPage() {
       const rows = (data ?? []) as unknown as FoodListingRow[];
 
       const ids = rows.map((r) => r.id);
-      const { data: images } = await supabase
-        .from(FOOD_IMAGES_TABLE)
-        .select("food_listing_id,storage_path,sort_index")
-        .in("food_listing_id", ids);
-      const imageRows = (images ?? []) as unknown as FoodImageRow[];
-      const imageMap = new Map<string, FoodImageRow[]>();
-      for (const img of imageRows) {
-        const arr = imageMap.get(img.food_listing_id) ?? [];
-        arr.push(img);
-        imageMap.set(img.food_listing_id, arr);
+      const sellerIds = [...new Set(rows.map((r) => r.seller_id))];
+
+      const [{ data: images }, { data: sellers }] = await Promise.all([
+        ids.length
+          ? supabase
+              .from(FOOD_IMAGES_TABLE)
+              .select("food_listing_id,storage_path,sort_index")
+              .in("food_listing_id", ids)
+          : Promise.resolve({ data: [] }),
+        sellerIds.length
+          ? supabase
+              .from("seller_profiles")
+              .select("user_id,slug,display_name,avatar_url")
+              .in("user_id", sellerIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { food_listing_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.food_listing_id)) {
+          imageMap.set(
+            row.food_listing_id,
+            supabase.storage.from("food-images").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
       }
 
-      return rows.map((r) => {
-        const cover = (imageMap.get(r.id) ?? []).sort((a, b) => a.sort_index - b.sort_index)[0];
-        const coverUrl = cover
-          ? supabase.storage.from("food-images").getPublicUrl(cover.storage_path).data.publicUrl
-          : null;
-        return { ...r, coverUrl };
-      });
+      const sellerMap = new Map(
+        (sellers ?? []).map(
+          (s: { user_id: string; slug: string; display_name: string; avatar_url: string | null }) => [
+            s.user_id,
+            { display_name: s.display_name, avatar_url: s.avatar_url, slug: s.slug },
+          ],
+        ),
+      );
+
+      return rows.map((r) => ({
+        ...r,
+        coverUrl: imageMap.get(r.id) ?? null,
+        seller: sellerMap.get(r.seller_id),
+      }));
     },
     refetchInterval: 10000,
   });
@@ -115,27 +160,27 @@ function FoodHubPage() {
   });
 
   const filteredListings = useMemo(() => {
+    let items = listings ?? [];
+    if (categoryFilter) items = items.filter((l) => l.category === categoryFilter);
     const q = query.trim().toLowerCase();
-    if (!q) return listings ?? [];
-    return (listings ?? []).filter((l) => {
-      return (
+    if (!q) return items;
+    return items.filter(
+      (l) =>
         l.product_name.toLowerCase().includes(q) ||
         l.brand_name.toLowerCase().includes(q) ||
-        l.category.toLowerCase().includes(q)
-      );
-    });
-  }, [listings, query]);
+        l.category.toLowerCase().includes(q),
+    );
+  }, [listings, query, categoryFilter]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return requests ?? [];
-    return (requests ?? []).filter((r) => {
-      return (
+    return (requests ?? []).filter(
+      (r) =>
         r.product_name.toLowerCase().includes(q) ||
         r.category.toLowerCase().includes(q) ||
-        r.description.toLowerCase().includes(q)
-      );
-    });
+        r.description.toLowerCase().includes(q),
+    );
   }, [requests, query]);
 
   const formatInr = (amount: number) =>
@@ -146,31 +191,41 @@ function FoodHubPage() {
     const expiry = new Date(expiryDate);
     const diff = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     if (diff > 60)
-      return { label: `${diff} days left`, className: "bg-emerald-100 text-emerald-700" };
+      return { label: `${diff} days left`, className: "bg-emerald-500 text-white" };
     if (diff >= 30)
-      return { label: `${diff} days left`, className: "bg-yellow-100 text-yellow-700" };
-    return { label: `${Math.max(diff, 0)} days left`, className: "bg-red-100 text-red-700" };
+      return { label: `${diff} days left`, className: "bg-yellow-500 text-white" };
+    return { label: `${Math.max(diff, 0)} days left`, className: "bg-red-500 text-white" };
   };
 
-  const openForm = (mode: "sell" | "request") => {
+  const urgencyColor = (level: string) => {
+    const l = level.toLowerCase();
+    if (l.includes("urgent")) return "bg-red-500 text-white";
+    if (l.includes("high")) return "bg-orange-500 text-white";
+    if (l.includes("medium")) return "bg-yellow-500 text-white";
+    return "bg-emerald-500 text-white";
+  };
+
+  const timeAgo = (iso: string) => {
+    const h = Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60));
+    if (h < 1) return "Just now";
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  };
+
+  const openForm = (formMode: "sell" | "request") => {
     if (!user) {
       navigate({ to: "/login" });
       return;
     }
-    if (mode === "sell") navigate({ to: "/upload-food" });
+    if (formMode === "sell") navigate({ to: "/upload-food" });
     else navigate({ to: "/upload-food-request" });
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Back"
-            onClick={() => navigate({ to: "/" })}
-          >
+    <div className="min-h-screen bg-gradient-to-b from-sky-50/50 to-background pb-24">
+      <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3">
+          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate({ to: "/" })}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Link to="/" className="flex items-center gap-2">
@@ -179,85 +234,158 @@ function FoodHubPage() {
             </span>
             <div className="leading-tight">
               <div className="text-sm font-bold tracking-tight">Food Hub</div>
-              <div className="text-[10px] text-muted-foreground">Only packaged & branded food</div>
+              <div className="text-[10px] text-muted-foreground">Packaged & branded only</div>
             </div>
           </Link>
 
-          <div className="relative ml-auto flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="h-10 rounded-full bg-background pl-9"
-              placeholder="Search food or brand..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+          <div className="ml-auto flex rounded-full border bg-muted/40 p-0.5">
+            <button
+              type="button"
+              onClick={() => setMode("sell")}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                mode === "sell" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground",
+              )}
+            >
+              Sell
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("requests")}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                mode === "requests"
+                  ? "bg-sky-600 text-white shadow-sm"
+                  : "text-muted-foreground",
+              )}
+            >
+              Requests
+            </button>
           </div>
-
-          <Button
-            size="icon"
-            className="rounded-full"
-            onClick={() => openForm(tab === "sell" ? "sell" : "request")}
-          >
-            <Plus className="h-5 w-5" />
-          </Button>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-4">
-        <div className="mb-3 grid grid-cols-2 gap-2">
-          <Button variant="outline" onClick={() => openForm("sell")}>
-            Sell details
-          </Button>
-          <Button variant="outline" onClick={() => openForm("request")}>
-            Request details
-          </Button>
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="h-10 rounded-full bg-card pl-9"
+            placeholder="Search food, brand, or requests..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="sell">Sell</TabsTrigger>
-            <TabsTrigger value="requests">Requests</TabsTrigger>
-          </TabsList>
+        {mode === "sell" && (
+          <>
+            <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={() => setCategoryFilter(null)}
+                className={cn(
+                  "shrink-0 rounded-full border px-4 py-2 text-xs font-medium",
+                  !categoryFilter ? "border-primary bg-primary/10 text-primary" : "bg-card",
+                )}
+              >
+                All
+              </button>
+              {FOOD_CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategoryFilter(categoryFilter === cat ? null : cat)}
+                  className={cn(
+                    "flex shrink-0 flex-col items-center gap-1 rounded-xl border px-3 py-2 text-[10px]",
+                    categoryFilter === cat ? "border-primary bg-primary/10" : "bg-card",
+                  )}
+                >
+                  <UtensilsCrossed className="h-4 w-4 text-primary" />
+                  {cat.split(" ")[0]}
+                </button>
+              ))}
+            </div>
 
-          <TabsContent value="sell" className="mt-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-semibold">Recently Added</h2>
+              <Button size="sm" onClick={() => openForm("sell")}>
+                <Plus className="mr-1 h-4 w-4" />
+                Post listing
+              </Button>
+            </div>
+
             {loadingListings ? (
-              <div className="flex justify-center py-16 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin" />
+              <div className="flex justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : filteredListings.length ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-3">
                 {filteredListings.map((l) => {
                   const expiry = getExpiryBadge(l.expiry_date);
                   return (
                     <Card
                       key={l.id}
-                      className="border-border/60 shadow-sm"
+                      className="cursor-pointer overflow-hidden border-border/60 shadow-sm transition-shadow hover:shadow-md"
                       onClick={() => navigate({ to: "/food/$id", params: { id: l.id } })}
                     >
-                      <CardContent className="p-0">
-                        {l.coverUrl ? (
-                          <img
-                            src={l.coverUrl}
-                            alt={l.product_name}
-                            className="h-40 w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-40 w-full items-center justify-center bg-muted text-sm text-muted-foreground">
-                            No image
+                      <CardContent className="flex gap-3 p-3">
+                        <div className="relative shrink-0">
+                          {l.coverUrl ? (
+                            <img
+                              src={l.coverUrl}
+                              alt={l.product_name}
+                              className="h-24 w-24 rounded-xl object-cover sm:h-28 sm:w-28"
+                            />
+                          ) : (
+                            <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-muted sm:h-28 sm:w-28">
+                              <ShoppingBag className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                          )}
+                          <span
+                            className={`absolute left-1 top-1 rounded-md px-1.5 py-0.5 text-[9px] font-semibold ${expiry.className}`}
+                          >
+                            {expiry.label}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h3 className="line-clamp-2 text-sm font-semibold">{l.product_name}</h3>
+                              <p className="text-xs text-muted-foreground">
+                                {l.brand_name} · {l.quantity}
+                              </p>
+                            </div>
+                            <div onClick={(e) => e.stopPropagation()} role="presentation">
+                              <WishlistButton itemType="food" itemId={l.id} />
+                            </div>
                           </div>
-                        )}
-                        <div className="space-y-2 p-3">
-                          <div className="text-sm font-semibold">{l.product_name}</div>
-                          <div className="text-xs text-muted-foreground">{l.brand_name}</div>
-                          <div className="text-sm font-bold">{formatInr(Number(l.price))}</div>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline">{l.category}</Badge>
-                            <Badge variant="outline">{l.quantity}</Badge>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${expiry.className}`}
+                          <p className="mt-1 text-base font-bold text-sky-700">
+                            {formatInr(Number(l.price))}
+                          </p>
+                          <div className="mt-2 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-6 w-6">
+                                {l.seller?.avatar_url ? (
+                                  <AvatarImage src={l.seller.avatar_url} alt="" />
+                                ) : null}
+                                <AvatarFallback className="text-[9px]">
+                                  {(l.seller?.display_name ?? "S").slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-xs text-muted-foreground">
+                                {l.seller?.display_name ?? "Seller"} · {timeAgo(l.created_at)}
+                              </span>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toast.message("Chat coming soon");
+                              }}
                             >
-                              {expiry.label}
-                            </span>
+                              <MessageSquare className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       </CardContent>
@@ -266,50 +394,62 @@ function FoodHubPage() {
                 })}
               </div>
             ) : (
-              <div className="py-16 text-center text-sm text-muted-foreground">
-                No food listings yet.
+              <div className="flex flex-col items-center py-16 text-center">
+                <Heart className="mb-4 h-12 w-12 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">No food listings yet.</p>
+                <Button className="mt-4" onClick={() => openForm("sell")}>
+                  Post first listing
+                </Button>
               </div>
             )}
-          </TabsContent>
+          </>
+        )}
 
-          <TabsContent value="requests" className="mt-4">
+        {mode === "requests" && (
+          <>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-semibold">Food Requests</h2>
+              <Button size="sm" variant="secondary" onClick={() => openForm("request")}>
+                <Plus className="mr-1 h-4 w-4" />
+                New Request
+              </Button>
+            </div>
+
             {loadingRequests ? (
-              <div className="flex justify-center py-16 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin" />
+              <div className="flex justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : filteredRequests.length ? (
               <div className="space-y-3">
                 {filteredRequests.map((r) => (
                   <Card key={r.id} className="border-border/60 shadow-sm">
-                    <CardContent className="space-y-2 p-4">
+                    <CardContent className="space-y-3 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-sm font-semibold">{r.product_name}</div>
-                          <div className="text-xs text-muted-foreground">{r.category}</div>
+                          <span
+                            className={`mb-2 inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold capitalize ${urgencyColor(r.urgency_level)}`}
+                          >
+                            {r.urgency_level}
+                          </span>
+                          <h3 className="font-semibold">{r.product_name}</h3>
+                          <p className="text-xs text-muted-foreground">
+                            {r.category} · {r.quantity_needed}
+                          </p>
                         </div>
-                        <Badge variant="secondary">{r.urgency_level}</Badge>
+                        <Badge variant="outline">{timeAgo(r.created_at)}</Badge>
                       </div>
-                      <div className="text-xs text-muted-foreground">{r.description}</div>
+                      <p className="text-sm text-muted-foreground line-clamp-2">{r.description}</p>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => toast.message("I Have This is coming soon")}
+                          className="flex-1"
+                          onClick={() => toast.message("Response flow coming soon")}
                         >
                           I Have This
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => toast.message("Chat is coming soon")}
-                        >
-                          Chat User
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => toast.message("Mark fulfilled is coming soon")}
-                        >
-                          Mark Fulfilled
+                        <Button size="sm" variant="ghost" onClick={() => toast.message("Chat coming soon")}>
+                          <MessageSquare className="h-4 w-4" />
                         </Button>
                       </div>
                     </CardContent>
@@ -318,11 +458,11 @@ function FoodHubPage() {
               </div>
             ) : (
               <div className="py-16 text-center text-sm text-muted-foreground">
-                No food requests yet.
+                No open requests yet. Be the first to post one!
               </div>
             )}
-          </TabsContent>
-        </Tabs>
+          </>
+        )}
       </main>
     </div>
   );

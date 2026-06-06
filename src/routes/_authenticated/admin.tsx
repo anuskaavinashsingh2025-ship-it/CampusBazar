@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -30,8 +30,15 @@ type ReportRow = {
 };
 
 function AdminPortalPage() {
-  const { isAdmin, user } = useAuth();
+  const navigate = useNavigate();
+  const { isAdmin, user, loading } = useAuth();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      navigate({ to: "/dashboard" });
+    }
+  }, [loading, isAdmin, navigate]);
 
   const { data: analytics } = useQuery({
     queryKey: ["admin", "analytics"],
@@ -146,17 +153,10 @@ function AdminPortalPage() {
     toast.success(`User ${status}`);
   };
 
-  if (!isAdmin) {
+  if (loading || !isAdmin) {
     return (
-      <div className="mx-auto max-w-3xl py-10">
-        <Card>
-          <CardHeader>
-            <CardTitle>403 — Admin access only</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            You do not have permission to access the Admin Portal.
-          </CardContent>
-        </Card>
+      <div className="mx-auto max-w-3xl py-10 text-center text-sm text-muted-foreground">
+        {loading ? "Loading…" : "Redirecting…"}
       </div>
     );
   }

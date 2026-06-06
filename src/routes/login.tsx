@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { ensureProfile } from "@/lib/supabase-account";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { session, loading } = useAuth();
+  const { session, loading, isProfileComplete } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,9 +33,9 @@ function LoginPage() {
 
   useEffect(() => {
     if (!loading && session) {
-      navigate({ to: "/" });
+      navigate({ to: isProfileComplete ? "/" : "/complete-profile" });
     }
-  }, [loading, session, navigate]);
+  }, [loading, session, isProfileComplete, navigate]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -56,7 +57,20 @@ function LoginPage() {
         if (error) throw error;
         toast.success("Account created!");
       }
-      navigate({ to: "/" });
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      if (authUser) {
+        await ensureProfile(authUser);
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("is_profile_complete")
+          .eq("id", authUser.id)
+          .maybeSingle();
+        navigate({ to: prof?.is_profile_complete ? "/" : "/complete-profile" });
+      } else {
+        navigate({ to: "/" });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       toast.error(message);

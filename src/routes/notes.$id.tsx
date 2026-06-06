@@ -70,6 +70,7 @@ function NotesDetailsPage() {
         .from(NOTES_ASSETS_TABLE)
         .select("kind,storage_path,sort_index")
         .eq("listing_id", id)
+        .eq("kind", "image")
         .order("sort_index", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as NotesAssetRow[];

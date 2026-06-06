@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { Heart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { WishlistButton } from "@/components/wishlist/wishlist-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -53,18 +53,7 @@ export function ProductCard({ product }: { product: ProductCardModel }) {
             )}
           </Link>
 
-          {/* Wishlist icon (UI only; feature intentionally not implemented) */}
-          <button
-            type="button"
-            aria-label="Wishlist (coming soon)"
-            className="absolute right-3 top-3 grid h-9 w-9 place-content-center rounded-full bg-white/90 text-muted-foreground shadow"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            <Heart className="h-5 w-5" />
-          </button>
+          <WishlistButton itemType="product" itemId={product.id} />
 
           {product.urgent_sale && (
             <div className="absolute left-3 top-3">

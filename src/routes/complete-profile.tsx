@@ -5,13 +5,12 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-const HOSTEL_BLOCKS = ["A Block", "B Block", "C Block", "D Block", "Day Scholar", "Other"];
 
 export const Route = createFileRoute("/complete-profile")({
   head: () => ({
@@ -51,14 +50,18 @@ function CompleteProfilePage() {
     if (!user) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName.trim(),
-          hostel_block: hostelBlock,
-          is_profile_complete: true,
-        })
-        .eq("id", user.id);
+      const payload = {
+        full_name: fullName.trim(),
+        hostel_block: hostelBlock,
+        is_profile_complete: true,
+      };
+      const { error } = profile
+        ? await supabase.from("profiles").update(payload).eq("id", user.id)
+        : await supabase.from("profiles").insert({
+            id: user.id,
+            email: user.email ?? "",
+            ...payload,
+          });
       if (error) throw error;
       await refreshProfile();
       toast.success("Profile completed!");

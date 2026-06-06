@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   GraduationCap,
   LayoutDashboard,
+  User,
   Package,
   CalendarClock,
   MessageSquare,
@@ -26,14 +27,15 @@ import { useAuth } from "@/lib/auth";
 
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "My Listings", url: "/upload-product", icon: Package },
+  { title: "User Profile", url: "/profile", icon: User },
+  { title: "Seller Profile", url: "/seller-profile", icon: Store },
+  { title: "Sell Item", url: "/upload-product", icon: Package },
+  { title: "Wishlist", url: "/wishlist", icon: Heart },
 ] as const;
 
-// Routes not built yet — shown as upcoming, disabled to keep type-safe routing intact.
 const upcomingItems = [
   { title: "Rentals", icon: CalendarClock },
   { title: "Messages", icon: MessageSquare },
-  { title: "Wishlist", icon: Heart },
 ] as const;
 
 export function AppSidebar() {

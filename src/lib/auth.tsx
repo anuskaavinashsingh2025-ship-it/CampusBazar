@@ -12,6 +12,7 @@ import type { Session, User } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { ensureProfile } from "@/lib/supabase-account";
 
 export type Profile = Tables<"profiles">;
 export type AppRole = "user" | "admin";
@@ -38,20 +39,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const currentUserId = useRef<string | null>(null);
 
-  const loadUserData = useCallback(async (userId: string) => {
+  const loadUserData = useCallback(async (authUser: User) => {
+    await ensureProfile(authUser);
     const [{ data: profileData }, { data: roleData }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", userId),
+      supabase.from("profiles").select("*").eq("id", authUser.id).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", authUser.id),
     ]);
     setProfile(profileData ?? null);
     setRoles((roleData ?? []).map((r) => r.role as AppRole));
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (currentUserId.current) {
-      await loadUserData(currentUserId.current);
+    if (user) {
+      await loadUserData(user);
     }
-  }, [loadUserData]);
+  }, [loadUserData, user]);
 
   useEffect(() => {
     // Register listener first, then read the existing session.
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (nextSession?.user) {
         // Defer Supabase calls to avoid deadlocking inside the callback.
         setTimeout(() => {
-          void loadUserData(nextSession.user.id);
+          void loadUserData(nextSession.user);
         }, 0);
       } else {
         setProfile(null);
@@ -78,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(existing?.user ?? null);
       currentUserId.current = existing?.user?.id ?? null;
       if (existing?.user) {
-        void loadUserData(existing.user.id).finally(() => setLoading(false));
+        void loadUserData(existing.user).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }

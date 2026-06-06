@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowLeft, GraduationCap, Loader2, Upload } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { ensureSellerProfile } from "@/lib/supabase-account";
 import type { Database } from "@/integrations/supabase/types";
 
 import { Button } from "@/components/ui/button";
@@ -63,6 +65,7 @@ const NOTES_ASSETS_TABLE = "notes_assets" as unknown as keyof Database["public"]
 
 function UploadNotesPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, profile } = useAuth();
   const search = Route.useSearch();
   const type = search.type === "rent" ? "rent" : "sell";
@@ -118,21 +121,11 @@ function UploadNotesPage() {
 
     setSubmitting(true);
     try {
-      const { data: existingSeller } = await supabase
-        .from(SELLER_PROFILES_TABLE)
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (!existingSeller) {
-        const sellerInsert: SellerInsertable = {
-          user_id: user.id,
-          display_name: sellerDisplayName,
-          avatar_url: profile?.avatar_url ?? null,
-        };
-        const { error } = await supabase.from(SELLER_PROFILES_TABLE).insert(sellerInsert);
-        if (error) throw error;
-      }
+      await ensureSellerProfile({
+        user_id: user.id,
+        display_name: sellerDisplayName,
+        avatar_url: profile?.avatar_url ?? null,
+      });
 
       const insertPayload = {
         seller_id: user.id,
@@ -140,7 +133,7 @@ function UploadNotesPage() {
         title: title.trim(),
         description: description.trim(),
         category,
-        subject: subject.trim() || null,
+        subject: subject.trim(),
         faculty: faculty.trim() || null,
         semester: semester.trim() || null,
         branch: branch.trim() || null,
@@ -156,10 +149,9 @@ function UploadNotesPage() {
         .from(NOTES_LISTINGS_TABLE)
         .insert(insertPayload)
         .select("id")
-        .maybeSingle();
+        .single();
 
       if (insertErr) throw insertErr;
-      if (!inserted?.id) throw new Error("Failed to create notes listing.");
       const listingId = inserted.id as string;
 
       const bucket = "notes-assets";
@@ -184,6 +176,7 @@ function UploadNotesPage() {
         if (imgMetaErr) throw imgMetaErr;
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["notes"] });
       toast.success("Notes uploaded!");
       navigate({ to: "/notes/$id", params: { id: listingId } });
     } catch (err) {

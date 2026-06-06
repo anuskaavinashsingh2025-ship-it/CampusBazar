@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { GraduationCap, Image as ImageIcon, Loader2, ArrowLeft } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { ensureSellerProfile } from "@/lib/supabase-account";
 import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +64,7 @@ export const Route = createFileRoute("/_authenticated/upload-rental")({
 
 function UploadRentalPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, profile } = useAuth();
 
   const sellerDisplayName = useMemo(() => {
@@ -109,21 +112,11 @@ function UploadRentalPage() {
 
     setSubmitting(true);
     try {
-      const { data: existingSeller } = await supabase
-        .from(SELLER_PROFILES_TABLE)
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (!existingSeller) {
-        const sellerInsert: SellerInsertable = {
-          user_id: user.id,
-          display_name: sellerDisplayName,
-          avatar_url: profile?.avatar_url ?? null,
-        };
-        const { error } = await supabase.from(SELLER_PROFILES_TABLE).insert(sellerInsert);
-        if (error) throw error;
-      }
+      await ensureSellerProfile({
+        user_id: user.id,
+        display_name: sellerDisplayName,
+        avatar_url: profile?.avatar_url ?? null,
+      });
 
       const { data: inserted, error: insertErr } = await supabase
         .from(RENTAL_LISTINGS_TABLE)
@@ -138,10 +131,9 @@ function UploadRentalPage() {
           status: "available",
         })
         .select("id")
-        .maybeSingle();
+        .single();
 
       if (insertErr) throw insertErr;
-      if (!inserted?.id) throw new Error("Failed to create rental listing.");
 
       const rentalId = inserted.id as string;
       const bucket = "rental-images";
@@ -164,6 +156,7 @@ function UploadRentalPage() {
         if (imageErr) throw imageErr;
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["rentals"] });
       toast.success("Rental uploaded!");
       navigate({ to: "/rent/$id", params: { id: rentalId } });
     } catch (err) {

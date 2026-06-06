@@ -217,17 +217,12 @@ function MarketplaceHome() {
 
   const openUserProfile = () => {
     setProfilePickerOpen(false);
-    navigate({ to: "/dashboard" });
+    navigate({ to: "/profile" });
   };
 
   const openSellerProfile = () => {
     setProfilePickerOpen(false);
-    if (sellerProfile?.slug) {
-      navigate({ to: "/seller/$slug", params: { slug: sellerProfile.slug } });
-    } else {
-      toast.message("Seller profile will be created after your first product upload.");
-      navigate({ to: "/upload-product" });
-    }
+    navigate({ to: "/seller-profile" });
   };
 
   const handleLogout = async () => {
@@ -335,7 +330,10 @@ function MarketplaceHome() {
               variant="ghost"
               size="icon"
               aria-label="Wishlist"
-              onClick={() => handleDisabled("Wishlist")}
+              onClick={() => {
+                if (!user) navigate({ to: "/login" });
+                else navigate({ to: "/wishlist" });
+              }}
             >
               <Heart className="h-5 w-5" />
             </Button>
@@ -525,7 +523,10 @@ function MarketplaceHome() {
           variant="secondary"
           size="icon"
           className="h-10 w-10 rounded-full shadow"
-          onClick={() => handleDisabled("Wishlist")}
+          onClick={() => {
+            if (!user) navigate({ to: "/login" });
+            else navigate({ to: "/wishlist" });
+          }}
           aria-label="Wishlist"
         >
           <Heart className="h-5 w-5" />

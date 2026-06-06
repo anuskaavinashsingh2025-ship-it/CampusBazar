@@ -5,6 +5,8 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useAuth } from "@/lib/auth";
+import { useIsWishlisted, useWishlistToggle } from "@/lib/wishlist";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,6 +41,9 @@ const FOOD_IMAGES_TABLE = "food_images" as unknown as keyof Database["public"]["
 function FoodDetailsPage() {
   const navigate = useNavigate();
   const { id } = Route.useParams();
+  const { user } = useAuth();
+  const isWishlisted = useIsWishlisted(user?.id, "food", id);
+  const wishlistToggle = useWishlistToggle(user?.id);
 
   const { data: listing, isLoading } = useQuery({
     queryKey: ["food", id],
@@ -189,10 +194,17 @@ function FoodDetailsPage() {
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => toast.message("Wishlist coming soon")}
+                onClick={() => {
+                  if (!user) {
+                    toast.error("Please login to save items");
+                    navigate({ to: "/login" });
+                    return;
+                  }
+                  wishlistToggle.mutate({ itemType: "food", itemId: id, isWishlisted });
+                }}
               >
-                <Heart className="h-4 w-4" />
-                Add to wishlist
+                <Heart className={`h-4 w-4 ${isWishlisted ? "fill-red-500 text-red-500" : ""}`} />
+                {isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
               </Button>
             </div>
 

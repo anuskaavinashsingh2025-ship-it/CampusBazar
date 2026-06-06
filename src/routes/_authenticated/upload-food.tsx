@@ -1,11 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { ensureSellerProfile } from "@/lib/supabase-account";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +44,7 @@ const SELLER_PROFILES_TABLE = "seller_profiles" as unknown as keyof Database["pu
 
 function UploadFoodPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, profile } = useAuth();
 
   const [productName, setProductName] = useState("");
@@ -102,19 +105,11 @@ function UploadFoodPage() {
     try {
       if (!user) throw new Error("Please login again.");
 
-      const { data: existingSeller } = await supabase
-        .from(SELLER_PROFILES_TABLE)
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (!existingSeller) {
-        const { error } = await supabase.from(SELLER_PROFILES_TABLE).insert({
-          user_id: user.id,
-          display_name: sellerDisplayName,
-          avatar_url: profile?.avatar_url ?? null,
-        } as never);
-        if (error) throw error;
-      }
+      await ensureSellerProfile({
+        user_id: user.id,
+        display_name: sellerDisplayName,
+        avatar_url: profile?.avatar_url ?? null,
+      });
 
       const { data: inserted, error: insertErr } = await supabase
         .from(FOOD_LISTINGS_TABLE)
@@ -130,9 +125,8 @@ function UploadFoodPage() {
           status: "available",
         } as never)
         .select("id")
-        .maybeSingle();
+        .single();
       if (insertErr) throw insertErr;
-      if (!inserted?.id) throw new Error("Failed to create food listing.");
 
       const listingId = inserted.id as string;
       for (let i = 0; i < images.length; i++) {
@@ -153,6 +147,7 @@ function UploadFoodPage() {
         if (imgErr) throw imgErr;
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["food"] });
       toast.success("Food listing posted!");
       navigate({ to: "/food/$id", params: { id: listingId } });
     } catch (err) {

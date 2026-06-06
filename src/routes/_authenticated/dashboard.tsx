@@ -1,7 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Package, CalendarClock, Heart, Star, Plus, Store } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Package, CalendarClock, Heart, Star, Store, User } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
+import { fetchWishlist } from "@/lib/wishlist";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,31 +16,92 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
 
-const stats = [
-  { label: "Active listings", value: 0, icon: Package },
-  { label: "Active rentals", value: 0, icon: CalendarClock },
-  { label: "Wishlist items", value: 0, icon: Heart },
-  { label: "Seller rating", value: "—", icon: Star },
-];
-
 function DashboardPage() {
-  const { profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const firstName = (profile?.full_name ?? "there").split(" ")[0];
+
+  const { data: wishlistCount = 0 } = useQuery({
+    queryKey: ["wishlist_count", user?.id],
+    queryFn: async () => {
+      if (!user) return 0;
+      const rows = await fetchWishlist(user.id);
+      return rows.length;
+    },
+    enabled: Boolean(user?.id),
+  });
+
+  const { data: listingCount = 0 } = useQuery({
+    queryKey: ["my_product_count", user?.id],
+    queryFn: async () => {
+      if (!user) return 0;
+      const { count } = await supabase
+        .from("product_listings" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", user.id)
+        .eq("status", "available");
+      return count ?? 0;
+    },
+    enabled: Boolean(user?.id),
+  });
+
+  const { data: rentalCount = 0 } = useQuery({
+    queryKey: ["my_rental_count", user?.id],
+    queryFn: async () => {
+      if (!user) return 0;
+      const { count } = await supabase
+        .from("rental_listings" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", user.id)
+        .eq("status", "available");
+      return count ?? 0;
+    },
+    enabled: Boolean(user?.id),
+  });
+
+  const { data: sellerRating = "—" } = useQuery({
+    queryKey: ["seller_rating", user?.id],
+    queryFn: async () => {
+      if (!user) return "—";
+      const { data } = await supabase
+        .from("seller_profiles")
+        .select("rating_avg")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!data?.rating_avg) return "—";
+      return Number(data.rating_avg).toFixed(1);
+    },
+    enabled: Boolean(user?.id),
+  });
+
+  const stats = [
+    { label: "Active listings", value: listingCount, icon: Package },
+    { label: "Active rentals", value: rentalCount, icon: CalendarClock },
+    { label: "Wishlist items", value: wishlistCount, icon: Heart },
+    { label: "Seller rating", value: sellerRating, icon: Star },
+  ];
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Welcome back, {firstName} 👋</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Welcome back, {firstName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Here's what's happening with your CampusBazar account.
+            Here&apos;s what&apos;s happening with your CampusBazar account.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isAdmin && <Badge variant="secondary">Admin</Badge>}
-          <Button disabled>
-            <Plus className="h-4 w-4" />
-            New listing
+          <Button variant="outline" asChild>
+            <Link to="/profile">
+              <User className="h-4 w-4" />
+              My profile
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/seller-profile">
+              <Store className="h-4 w-4" />
+              Seller profile
+            </Link>
           </Button>
         </div>
       </div>
@@ -58,18 +122,20 @@ function DashboardPage() {
         ))}
       </div>
 
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-primary">
-            <Store className="h-6 w-6" />
-          </span>
-          <div>
-            <h2 className="text-lg font-semibold">Your marketplace is coming together</h2>
-            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-              Listings, rentals, chat and your seller storefront will appear here as those features
-              roll out.
-            </p>
-          </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Quick links</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/wishlist">Wishlist</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/upload-product">Sell an item</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/food">Food Hub</Link>
+          </Button>
         </CardContent>
       </Card>
     </div>
