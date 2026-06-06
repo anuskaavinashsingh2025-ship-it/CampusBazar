@@ -13,6 +13,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { ensureProfile } from "@/lib/supabase-account";
+import { saveLogin } from "@/lib/saved-login";
 
 export type Profile = Tables<"profiles">;
 export type AppRole = "user" | "admin";
@@ -59,10 +60,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Register listener first, then read the existing session.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
       currentUserId.current = nextSession?.user?.id ?? null;
+
+      if (nextSession?.user && event === "SIGNED_IN" && nextSession.user.email) {
+        saveLogin({
+          email: nextSession.user.email,
+          displayName: (nextSession.user.user_metadata?.full_name as string | undefined) ?? undefined,
+          provider:
+            nextSession.user.app_metadata?.provider === "google" ? "google" : "email",
+        });
+      }
 
       if (nextSession?.user) {
         // Defer Supabase calls to avoid deadlocking inside the callback.

@@ -151,6 +151,27 @@ function UploadProductPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!draftId || !user) return;
+    let cancelled = false;
+    void (async () => {
+      const { data: imageRows } = await supabase
+        .from(PRODUCT_IMAGES_TABLE)
+        .select("storage_path,sort_index")
+        .eq("product_id", draftId)
+        .order("sort_index", { ascending: true });
+      if (cancelled || !imageRows?.length || images.length > 0) return;
+      const previews = imageRows.map(
+        (row: { storage_path: string }) =>
+          supabase.storage.from("product-images").getPublicUrl(row.storage_path).data.publicUrl,
+      );
+      setImagePreviews(previews);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [draftId, user]);
+
   const categoryLabel =
     category === "Others" && customCategory.trim() ? customCategory.trim() : category || "Category";
 
@@ -208,18 +229,24 @@ function UploadProductPage() {
       avatar_url: profile?.avatar_url ?? null,
     });
 
+    const resolvedCategory = (category || "Others") as CategoryOption;
+    const resolvedCondition = (condition || "Good") as ConditionOption;
+    const resolvedDescription = description.trim() || title.trim() || "Draft listing — details to be added.";
+    const resolvedPrice = price.trim() ? Number(price) : 0;
+    const resolvedLocation = location.trim() || defaultLocation;
+
     const payload = {
       seller_id: user.id,
       title: title.trim(),
       description: contactNote.trim()
-        ? `${description.trim()}\n\nPickup notes: ${contactNote.trim()}`
-        : description.trim(),
-      category: category as CategoryOption,
-      custom_category: category === "Others" ? customCategory.trim() : null,
-      price: Number(price),
-      condition: condition as ConditionOption,
+        ? `${resolvedDescription}\n\nPickup notes: ${contactNote.trim()}`
+        : resolvedDescription,
+      category: resolvedCategory,
+      custom_category: resolvedCategory === "Others" ? customCategory.trim() || "Draft" : null,
+      price: resolvedPrice,
+      condition: resolvedCondition,
       is_negotiable: isNegotiable,
-      location: location.trim(),
+      location: resolvedLocation,
       urgent_sale: urgentSale,
       status: publish ? ("available" as const) : ("hidden" as const),
     };

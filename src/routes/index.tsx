@@ -18,6 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import type { Database } from "@/integrations/supabase/types";
 
+import { CategoryStrip } from "@/components/category-strip";
+import { RecentlyViewedSection } from "@/components/listing/recently-viewed-section";
 import { ProductCard, type ProductCardModel } from "@/components/marketplace/product-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,17 +74,6 @@ type ProductImageRow = {
 
 const PRODUCT_LISTINGS_TABLE = "product_listings" as unknown as keyof Database["public"]["Tables"];
 const PRODUCT_IMAGES_TABLE = "product_images" as unknown as keyof Database["public"]["Tables"];
-
-const CATEGORY_STRIP = [
-  { key: "Food", label: "Food" },
-  { key: "Rent", label: "Rent" },
-  { key: "Notes", label: "Notes" },
-  { key: "Books", label: "Books" },
-  { key: "Electronics", label: "Electronics" },
-  { key: "Furniture", label: "Furniture" },
-  { key: "Clothes", label: "Clothes" },
-  { key: "More", label: "More" },
-] as const;
 
 function MarketplaceHome() {
   const navigate = useNavigate();
@@ -386,33 +377,10 @@ function MarketplaceHome() {
           </Button>
         </div>
 
-        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
-          {CATEGORY_STRIP.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => {
-                if (c.key === "Rent") {
-                  navigate({ to: "/rent" });
-                  return;
-                }
-                if (c.key === "Notes") {
-                  navigate({ to: "/notes" });
-                  return;
-                }
-                if (c.key === "Food") {
-                  navigate({ to: "/food" });
-                  return;
-                }
-                handleDisabled(c.label);
-              }}
-              className="min-w-[80px] rounded-xl border bg-card px-3 py-3 text-center text-xs shadow-sm"
-            >
-              <div className="mx-auto mb-2 h-9 w-9 rounded-xl bg-muted" />
-              <div className="font-medium">{c.label}</div>
-            </button>
-          ))}
-        </div>
+        <CategoryStrip
+          className="mt-3"
+          onViewAll={() => handleDisabled("View all categories")}
+        />
 
         <div className="mt-6 flex items-center justify-between" id="fresh-recos">
           <div className="text-sm font-semibold">Fresh recommendations</div>
@@ -437,6 +405,10 @@ function MarketplaceHome() {
               No listings found.
             </div>
           )}
+        </div>
+
+        <div className="mt-8">
+          <RecentlyViewedSection />
         </div>
 
         <Card className="mt-8 border-border/60">

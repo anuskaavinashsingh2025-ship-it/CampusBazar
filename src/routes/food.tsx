@@ -238,7 +238,16 @@ function FoodHubPage() {
             </div>
           </Link>
 
-          <div className="ml-auto flex rounded-full border bg-muted/40 p-0.5">
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Wishlist"
+              onClick={() => (user ? navigate({ to: "/wishlist" }) : navigate({ to: "/login" }))}
+            >
+              <Heart className="h-5 w-5" />
+            </Button>
+            <div className="flex rounded-full border bg-muted/40 p-0.5">
             <button
               type="button"
               onClick={() => setMode("sell")}
@@ -261,6 +270,7 @@ function FoodHubPage() {
             >
               Requests
             </button>
+            </div>
           </div>
         </div>
       </header>

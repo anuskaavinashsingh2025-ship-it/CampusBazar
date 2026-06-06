@@ -60,13 +60,17 @@ export function useWishlistToggle(userId: string | null | undefined) {
       if (!userId) throw new Error("Login required");
 
       if (isWishlisted) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from(WISHLIST_TABLE)
           .delete()
           .eq("user_id", userId)
           .eq("item_type", itemType)
-          .eq("item_id", itemId);
+          .eq("item_id", itemId)
+          .select("id");
         if (error) throw error;
+        if (!data?.length) {
+          throw new Error("Item was not in your wishlist");
+        }
         return false;
       }
 
@@ -75,7 +79,10 @@ export function useWishlistToggle(userId: string | null | undefined) {
         item_type: itemType,
         item_id: itemId,
       });
-      if (error) throw error;
+      if (error) {
+        if (error.code === "23505") return true;
+        throw error;
+      }
       return true;
     },
     onMutate: async ({ itemType, itemId, isWishlisted }) => {
@@ -101,11 +108,20 @@ export function useWishlistToggle(userId: string | null | undefined) {
 
       return { previous };
     },
-    onError: (err, _vars, context) => {
+    onSuccess: (added) => {
+      if (added) toast.success("Added to wishlist");
+      else toast.success("Removed from wishlist");
+    },
+    onError: (err, vars, context) => {
       if (userId && context?.previous) {
         queryClient.setQueryData(wishlistQueryKey(userId), context.previous);
       }
-      toast.error(err instanceof Error ? err.message : "Could not update wishlist");
+      const msg = err instanceof Error ? err.message : "Could not update wishlist";
+      if (vars.isWishlisted && msg.includes("not in your wishlist")) {
+        void queryClient.invalidateQueries({ queryKey: wishlistQueryKey(userId!) });
+        return;
+      }
+      toast.error(msg);
     },
     onSettled: () => {
       if (userId) {

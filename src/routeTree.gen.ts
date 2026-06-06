@@ -30,7 +30,11 @@ import { Route as AuthenticatedUploadNotesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedUploadFoodRequestRouteImport } from './routes/_authenticated/upload-food-request'
 import { Route as AuthenticatedUploadFoodRouteImport } from './routes/_authenticated/upload-food'
 import { Route as AuthenticatedSellerProfileRouteImport } from './routes/_authenticated/seller-profile'
+import { Route as AuthenticatedRequestsRouteImport } from './routes/_authenticated/requests'
+import { Route as AuthenticatedRentalRequestsRouteImport } from './routes/_authenticated/rental-requests'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
+import { Route as AuthenticatedNotificationSettingsRouteImport } from './routes/_authenticated/notification-settings'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
@@ -144,11 +148,34 @@ const AuthenticatedSellerProfileRoute =
     path: '/seller-profile',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedRequestsRoute = AuthenticatedRequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedRentalRequestsRoute =
+  AuthenticatedRentalRequestsRouteImport.update({
+    id: '/rental-requests',
+    path: '/rental-requests',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedNotificationSettingsRoute =
+  AuthenticatedNotificationSettingsRouteImport.update({
+    id: '/notification-settings',
+    path: '/notification-settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -170,7 +197,11 @@ export interface FileRoutesByFullPath {
   '/rent': typeof RentRouteWithChildren
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/notification-settings': typeof AuthenticatedNotificationSettingsRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/rental-requests': typeof AuthenticatedRentalRequestsRoute
+  '/requests': typeof AuthenticatedRequestsRoute
   '/seller-profile': typeof AuthenticatedSellerProfileRoute
   '/upload-food': typeof AuthenticatedUploadFoodRoute
   '/upload-food-request': typeof AuthenticatedUploadFoodRequestRoute
@@ -195,7 +226,11 @@ export interface FileRoutesByTo {
   '/rent': typeof RentRouteWithChildren
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/notification-settings': typeof AuthenticatedNotificationSettingsRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/rental-requests': typeof AuthenticatedRentalRequestsRoute
+  '/requests': typeof AuthenticatedRequestsRoute
   '/seller-profile': typeof AuthenticatedSellerProfileRoute
   '/upload-food': typeof AuthenticatedUploadFoodRoute
   '/upload-food-request': typeof AuthenticatedUploadFoodRequestRoute
@@ -222,7 +257,11 @@ export interface FileRoutesById {
   '/rent': typeof RentRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/notification-settings': typeof AuthenticatedNotificationSettingsRoute
+  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/_authenticated/rental-requests': typeof AuthenticatedRentalRequestsRoute
+  '/_authenticated/requests': typeof AuthenticatedRequestsRoute
   '/_authenticated/seller-profile': typeof AuthenticatedSellerProfileRoute
   '/_authenticated/upload-food': typeof AuthenticatedUploadFoodRoute
   '/_authenticated/upload-food-request': typeof AuthenticatedUploadFoodRequestRoute
@@ -249,7 +288,11 @@ export interface FileRouteTypes {
     | '/rent'
     | '/admin'
     | '/dashboard'
+    | '/notification-settings'
+    | '/notifications'
     | '/profile'
+    | '/rental-requests'
+    | '/requests'
     | '/seller-profile'
     | '/upload-food'
     | '/upload-food-request'
@@ -274,7 +317,11 @@ export interface FileRouteTypes {
     | '/rent'
     | '/admin'
     | '/dashboard'
+    | '/notification-settings'
+    | '/notifications'
     | '/profile'
+    | '/rental-requests'
+    | '/requests'
     | '/seller-profile'
     | '/upload-food'
     | '/upload-food-request'
@@ -300,7 +347,11 @@ export interface FileRouteTypes {
     | '/rent'
     | '/_authenticated/admin'
     | '/_authenticated/dashboard'
+    | '/_authenticated/notification-settings'
+    | '/_authenticated/notifications'
     | '/_authenticated/profile'
+    | '/_authenticated/rental-requests'
+    | '/_authenticated/requests'
     | '/_authenticated/seller-profile'
     | '/_authenticated/upload-food'
     | '/_authenticated/upload-food-request'
@@ -478,11 +529,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSellerProfileRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/requests': {
+      id: '/_authenticated/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof AuthenticatedRequestsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/rental-requests': {
+      id: '/_authenticated/rental-requests'
+      path: '/rental-requests'
+      fullPath: '/rental-requests'
+      preLoaderRoute: typeof AuthenticatedRentalRequestsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/profile': {
       id: '/_authenticated/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notification-settings': {
+      id: '/_authenticated/notification-settings'
+      path: '/notification-settings'
+      fullPath: '/notification-settings'
+      preLoaderRoute: typeof AuthenticatedNotificationSettingsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/dashboard': {
@@ -505,7 +584,11 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedNotificationSettingsRoute: typeof AuthenticatedNotificationSettingsRoute
+  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
+  AuthenticatedRentalRequestsRoute: typeof AuthenticatedRentalRequestsRoute
+  AuthenticatedRequestsRoute: typeof AuthenticatedRequestsRoute
   AuthenticatedSellerProfileRoute: typeof AuthenticatedSellerProfileRoute
   AuthenticatedUploadFoodRoute: typeof AuthenticatedUploadFoodRoute
   AuthenticatedUploadFoodRequestRoute: typeof AuthenticatedUploadFoodRequestRoute
@@ -519,7 +602,12 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedNotificationSettingsRoute:
+    AuthenticatedNotificationSettingsRoute,
+  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
+  AuthenticatedRentalRequestsRoute: AuthenticatedRentalRequestsRoute,
+  AuthenticatedRequestsRoute: AuthenticatedRequestsRoute,
   AuthenticatedSellerProfileRoute: AuthenticatedSellerProfileRoute,
   AuthenticatedUploadFoodRoute: AuthenticatedUploadFoodRoute,
   AuthenticatedUploadFoodRequestRoute: AuthenticatedUploadFoodRequestRoute,

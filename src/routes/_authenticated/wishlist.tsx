@@ -359,6 +359,20 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<ResolvedItem[]
       .from("rental_listings" as unknown as keyof Database["public"]["Tables"])
       .select("id,title,rent_price_per_day,category,custom_category,status,seller_id")
       .in("id", ids);
+    const { data: rentalImages } = await supabase
+      .from("rental_images" as unknown as keyof Database["public"]["Tables"])
+      .select("rental_id,storage_path,sort_index")
+      .in("rental_id", ids);
+    const rentalImageMap = new Map<string, string>();
+    for (const img of rentalImages ?? []) {
+      const row = img as { rental_id: string; storage_path: string };
+      if (!rentalImageMap.has(row.rental_id)) {
+        rentalImageMap.set(
+          row.rental_id,
+          supabase.storage.from("rental-images").getPublicUrl(row.storage_path).data.publicUrl,
+        );
+      }
+    }
     const sellerIds = [...new Set((rentals ?? []).map((r: { seller_id: string }) => r.seller_id))];
     const { data: sellers } = await supabase
       .from("seller_profiles")
@@ -389,7 +403,7 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<ResolvedItem[]
         title: r.title,
         price: Number(r.rent_price_per_day),
         category: r.category === "Others" && r.custom_category ? r.custom_category : r.category,
-        coverUrl: null,
+        coverUrl: rentalImageMap.get(r.id) ?? null,
         status: r.status,
         sellerName: seller?.display_name ?? "Seller",
         sellerSlug: seller?.slug ?? null,

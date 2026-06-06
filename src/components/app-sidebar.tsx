@@ -1,14 +1,19 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  Bell,
+  Bike,
+  FileText,
   GraduationCap,
-  LayoutDashboard,
-  User,
-  Package,
-  CalendarClock,
-  MessageSquare,
   Heart,
+  HelpCircle,
+  Home,
+  LogOut,
+  MessageSquare,
+  Package,
+  Shield,
   Store,
-  ShieldCheck,
+  Tag,
+  User,
 } from "lucide-react";
 
 import {
@@ -22,25 +27,52 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
+import { useUnreadNotificationCount } from "@/lib/notifications";
 
 const mainItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "User Profile", url: "/profile", icon: User },
+  { title: "Home", url: "/", icon: Home, external: true },
+  { title: "Rent", url: "/rent", icon: Bike, external: true },
+  { title: "Sell", url: "/upload-product", icon: Tag },
+  { title: "Notes Hub", url: "/notes", icon: FileText, external: true },
+  { title: "Chats", url: "/chats", icon: MessageSquare, disabled: true },
+  { title: "Requests", url: "/requests", icon: Shield },
   { title: "Seller Profile", url: "/seller-profile", icon: Store },
-  { title: "Sell Item", url: "/upload-product", icon: Package },
-  { title: "Wishlist", url: "/wishlist", icon: Heart },
 ] as const;
 
-const upcomingItems = [
-  { title: "Rentals", icon: CalendarClock },
-  { title: "Messages", icon: MessageSquare },
+const secondaryItems = [
+  { title: "Notifications", url: "/notifications", icon: Bell, showBadge: true },
+  { title: "Wishlist", url: "/wishlist", icon: Heart },
+  { title: "Profile", url: "/profile", icon: User },
 ] as const;
+
+function isNavActive(pathname: string, url: string, external?: boolean) {
+  if (url === "/") return pathname === "/";
+  if (external) return pathname === url || pathname.startsWith(`${url}/`);
+  return pathname === url || pathname.startsWith(`${url}/`);
+}
 
 export function AppSidebar() {
-  const { isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const { user, isAdmin, signOut } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { data: unreadCount = 0 } = useUnreadNotificationCount(user?.id);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate({ to: "/login" });
+  };
+
+  const handleAuthAction = async () => {
+    if (user) {
+      await handleSignOut();
+    } else {
+      navigate({ to: "/login" });
+    }
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -55,27 +87,60 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Marketplace</SidebarGroupLabel>
+          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  {"disabled" in item && item.disabled ? (
+                    <SidebarMenuButton disabled className="opacity-60">
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                      <span className="ml-auto text-[10px] uppercase text-muted-foreground">
+                        Soon
+                      </span>
+                    </SidebarMenuButton>
+                  ) : (
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isNavActive(pathname, item.url, item.external)}
+                    >
+                      <Link
+                        to={item.url}
+                        className="flex items-center gap-2"
+                        {...(item.external ? { target: "_self" } : {})}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  )}
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {secondaryItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={pathname === item.url}>
                     <Link to={item.url} className="flex items-center gap-2">
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
+                      {item.showBadge && unreadCount > 0 && (
+                        <Badge
+                          variant="destructive"
+                          className="ml-auto h-5 min-w-5 rounded-full px-1.5 text-[10px]"
+                        >
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </Badge>
+                      )}
                     </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              {upcomingItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton disabled className="opacity-60">
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.title}</span>
-                    <span className="ml-auto text-[10px] uppercase text-muted-foreground">
-                      Soon
-                    </span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -91,7 +156,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/admin"}>
                     <Link to="/admin" className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4" />
+                      <Package className="h-4 w-4" />
                       <span>Admin Portal</span>
                     </Link>
                   </SidebarMenuButton>
@@ -105,9 +170,23 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton disabled className="opacity-60">
-              <Store className="h-4 w-4" />
-              <span>My storefront</span>
+            <SidebarMenuButton asChild>
+              <a
+                href="mailto:support@campusbazar.app"
+                className="flex items-center gap-2"
+              >
+                <HelpCircle className="h-4 w-4" />
+                <span>Help &amp; Support</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={handleAuthAction}
+              className={user ? "text-destructive hover:text-destructive" : undefined}
+            >
+              <LogOut className="h-4 w-4" />
+              <span>{user ? "Log Out" : "Sign In"}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

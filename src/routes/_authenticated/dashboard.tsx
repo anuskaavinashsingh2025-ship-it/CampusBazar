@@ -136,6 +136,15 @@ function DashboardPage() {
           <Button variant="outline" asChild>
             <Link to="/food">Food Hub</Link>
           </Button>
+          <Button variant="outline" asChild>
+            <Link to="/rent">Rent</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/rental-requests">Rental Requests</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/notifications">Notifications</Link>
+          </Button>
         </CardContent>
       </Card>
     </div>

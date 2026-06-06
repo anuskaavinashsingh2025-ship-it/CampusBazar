@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -12,7 +13,10 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "../lib/auth";
+import { AppLayout } from "../components/app-layout";
 import { Toaster } from "../components/ui/sonner";
+
+const BARE_LAYOUT_PATHS = new Set(["/login", "/complete-profile"]);
 
 function NotFoundComponent() {
   return (
@@ -117,12 +121,19 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const useAppLayout = !BARE_LAYOUT_PATHS.has(pathname);
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
+        {useAppLayout ? (
+          <AppLayout>
+            <Outlet />
+          </AppLayout>
+        ) : (
+          <Outlet />
+        )}
         <Toaster />
       </AuthProvider>
     </QueryClientProvider>

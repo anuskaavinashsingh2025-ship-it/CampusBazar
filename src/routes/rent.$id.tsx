@@ -1,22 +1,42 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GraduationCap, Loader2, MessageSquare, Flag } from "lucide-react";
+import { ArrowLeft, GraduationCap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { getStoragePublicUrl } from "@/lib/storage-url";
+import {
+  isChatUnlockedForRentalRequest,
+  useCreateRentalRequest,
+  useRentalRequestForListing,
+} from "@/lib/rental-requests";
+import { useTrackListingView } from "@/lib/listing-views";
+import { WishlistButton } from "@/components/wishlist/wishlist-button";
+import { ChatSellerButton } from "@/components/listing/chat-seller-button";
+import { ListingGallery } from "@/components/listing/listing-gallery";
+import { ListingStats } from "@/components/listing/listing-stats";
+import { RecentlyViewedSection } from "@/components/listing/recently-viewed-section";
+import { ReportListingDialog } from "@/components/listing/report-listing-dialog";
+import { SellerQuickView } from "@/components/listing/seller-quick-view";
+import { ShareListingButton } from "@/components/listing/share-listing-button";
+import { SimilarListings } from "@/components/listing/similar-listings";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/rent/$id")({
   head: () => ({
@@ -36,6 +56,8 @@ type RentalRow = {
   status: "available" | "rented_out" | "unavailable";
   seller_id: string;
   created_at: string;
+  views_count?: number;
+  wishlist_count?: number;
 };
 
 type RentalImageRow = { storage_path: string; sort_index: number };
@@ -45,8 +67,18 @@ const RENTAL_IMAGES_TABLE = "rental_images" as unknown as keyof Database["public
 
 function RentDetailsPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { id } = Route.useParams();
+  const createRequest = useCreateRentalRequest();
+  const { data: existingRequest } = useRentalRequestForListing(id, user?.id);
+
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [durationDays, setDurationDays] = useState("7");
+  const [pickupDate, setPickupDate] = useState("");
+  const [pickupLocation, setPickupLocation] = useState(
+    profile?.hostel_block ? `${profile.hostel_block}, VIT Campus` : "VIT Campus",
+  );
+  const [requestMessage, setRequestMessage] = useState("");
 
   const { data: rental, isLoading } = useQuery({
     queryKey: ["rental", id],
@@ -54,7 +86,7 @@ function RentDetailsPage() {
       const { data, error } = await supabase
         .from(RENTAL_LISTINGS_TABLE)
         .select(
-          "id,title,description,rent_price_per_day,category,custom_category,condition,status,seller_id,created_at",
+          "id,title,description,rent_price_per_day,category,custom_category,condition,status,seller_id,created_at,views_count,wishlist_count",
         )
         .eq("id", id)
         .maybeSingle();
@@ -83,7 +115,7 @@ function RentDetailsPage() {
       if (!rental?.seller_id) return null;
       const { data, error } = await supabase
         .from("seller_profiles")
-        .select("user_id,slug,display_name,avatar_url,rating_avg,rating_count")
+        .select("user_id,slug,display_name,avatar_url,bio,rating_avg,rating_count")
         .eq("user_id", rental.seller_id)
         .maybeSingle();
       if (error) throw error;
@@ -94,6 +126,32 @@ function RentDetailsPage() {
 
   const formatInr = (amount: number) =>
     new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
+
+  const imageModels = useMemo(
+    () =>
+      (images ?? []).map((img) => ({
+        url: getStoragePublicUrl("rental-images", img.storage_path),
+        sort_index: img.sort_index,
+      })),
+    [images],
+  );
+
+  const priceLabel = rental
+    ? `${formatInr(Number(rental.rent_price_per_day))} / day`
+    : "";
+
+  useTrackListingView(
+    "rental",
+    rental?.id,
+    rental
+      ? {
+          title: rental.title,
+          coverUrl: imageModels[0]?.url ?? null,
+          priceLabel,
+          route: `/rent/${rental.id}`,
+        }
+      : null,
+  );
 
   if (isLoading) {
     return (
@@ -108,20 +166,9 @@ function RentDetailsPage() {
       <div className="min-h-screen bg-background">
         <header className="border-b bg-card/90 backdrop-blur">
           <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Back"
-              onClick={() => navigate({ to: "/rent" })}
-            >
+            <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate({ to: "/rent" })}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <Link to="/" className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                <GraduationCap className="h-5 w-5" />
-              </span>
-              <span className="text-sm font-bold tracking-tight">CampusBazar</span>
-            </Link>
           </div>
         </header>
         <main className="mx-auto max-w-4xl px-4 py-10 text-center text-sm text-muted-foreground">
@@ -131,11 +178,6 @@ function RentDetailsPage() {
     );
   }
 
-  const imageModels = (images ?? []).map((img) => ({
-    url: supabase.storage.from("rental-images").getPublicUrl(img.storage_path).data.publicUrl,
-    sort_index: img.sort_index,
-  }));
-
   const statusLabel =
     rental.status === "available"
       ? "Available"
@@ -143,12 +185,21 @@ function RentDetailsPage() {
         ? "Rented out"
         : "Unavailable";
 
+  const statusClass =
+    rental.status === "available"
+      ? "bg-emerald-500 text-white"
+      : rental.status === "rented_out"
+        ? "bg-orange-500 text-white"
+        : "bg-slate-400 text-white";
+
   const categoryLabel =
     rental.category === "Others" && rental.custom_category
       ? rental.custom_category
       : rental.category;
 
-  const requestRental = async () => {
+  const chatUnlocked = isChatUnlockedForRentalRequest(existingRequest?.status);
+
+  const openRequestDialog = () => {
     if (!user) {
       navigate({ to: "/login" });
       return;
@@ -161,32 +212,47 @@ function RentDetailsPage() {
       toast.error("This item is not available for request.");
       return;
     }
+    setRequestOpen(true);
+  };
 
-    const { error } = await supabase.from("rental_requests" as never).insert({
-      rental_id: rental.id,
-      buyer_id: user.id,
-      seller_id: rental.seller_id,
-      status: "pending",
-    } as never);
-
-    if (error) {
-      toast.error(error.message);
+  const submitRequest = () => {
+    if (!user) return;
+    const days = Number(durationDays);
+    if (!days || days < 1) {
+      toast.error("Enter a valid rental duration.");
+      return;
+    }
+    if (!pickupDate) {
+      toast.error("Select a pickup date.");
+      return;
+    }
+    if (!pickupLocation.trim()) {
+      toast.error("Enter a pickup location.");
       return;
     }
 
-    toast.success("Rental request sent!");
+    createRequest.mutate(
+      {
+        rentalId: rental.id,
+        buyerId: user.id,
+        sellerId: rental.seller_id,
+        rentalTitle: rental.title,
+        form: {
+          rentalDurationDays: days,
+          pickupDate,
+          pickupLocation: pickupLocation.trim(),
+          message: requestMessage,
+        },
+      },
+      { onSuccess: () => setRequestOpen(false) },
+    );
   };
 
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Back"
-            onClick={() => navigate({ to: "/rent" })}
-          >
+          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate({ to: "/rent" })}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Link to="/" className="flex items-center gap-2">
@@ -199,42 +265,35 @@ function RentDetailsPage() {
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-4">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card className="overflow-hidden">
-            <CardContent className="p-0">
-              {imageModels.length ? (
-                <Carousel opts={{ loop: true }}>
-                  <CarouselContent>
-                    {imageModels.map((img) => (
-                      <CarouselItem key={img.sort_index}>
-                        <img
-                          src={img.url}
-                          alt={rental.title}
-                          className="h-80 w-full object-cover"
-                        />
-                      </CarouselItem>
-                    ))}
-                  </CarouselContent>
-                  <CarouselPrevious />
-                  <CarouselNext />
-                </Carousel>
-              ) : (
-                <div className="flex h-80 items-center justify-center bg-muted text-sm text-muted-foreground">
-                  No images
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <ListingGallery
+            images={imageModels}
+            alt={rental.title}
+            overlay={
+              <>
+                <WishlistButton itemType="rental" itemId={rental.id} className="right-4 top-4" />
+                <span
+                  className={`absolute bottom-4 left-4 rounded-md px-2 py-1 text-xs font-semibold ${statusClass}`}
+                >
+                  {statusLabel}
+                </span>
+              </>
+            }
+          />
 
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-xl font-bold">{rental.title}</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  {formatInr(Number(rental.rent_price_per_day))} / day
-                </div>
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-2xl font-bold">{rental.title}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Posted {new Date(rental.created_at).toLocaleDateString()}
+              </p>
+              <p className="mt-1 text-xl font-bold text-primary">{priceLabel}</p>
+              <div className="mt-2">
+                <ListingStats
+                  viewsCount={rental.views_count ?? 0}
+                  wishlistCount={rental.wishlist_count ?? 0}
+                />
               </div>
-              <Badge variant="secondary">{statusLabel}</Badge>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -244,50 +303,93 @@ function RentDetailsPage() {
 
             <div className="rounded-xl border bg-card p-4">
               <div className="text-sm font-semibold text-muted-foreground">Description</div>
-              <div className="mt-2 whitespace-pre-wrap text-sm">{rental.description}</div>
+              <p className="mt-2 whitespace-pre-wrap text-sm">{rental.description}</p>
             </div>
 
-            {seller && (
-              <div className="rounded-xl border bg-card p-4">
-                <div className="text-sm font-semibold">Seller</div>
-                <div className="mt-1 text-sm">
-                  <Link
-                    to="/seller/$slug"
-                    params={{ slug: seller.slug }}
-                    className="hover:underline"
-                  >
-                    {seller.display_name}
-                  </Link>
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Rating: {Number(seller.rating_avg ?? 0).toFixed(1)} ({seller.rating_count ?? 0})
-                </div>
-              </div>
-            )}
+            {seller && <SellerQuickView seller={seller} />}
+
+            <div className="flex flex-wrap gap-2">
+              <ShareListingButton title={rental.title} />
+              <ReportListingDialog itemType="rental" itemId={rental.id} />
+            </div>
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <ChatSellerButton
+                sellerId={rental.seller_id}
+                chatUnlocked={chatUnlocked}
+                className="w-full gap-2"
+              />
               <Button
-                variant="outline"
-                onClick={() => toast.message("Chat is coming soon")}
-                className="gap-2"
+                onClick={openRequestDialog}
+                disabled={rental.status !== "available" || existingRequest?.status === "pending"}
               >
-                <MessageSquare className="h-4 w-4" />
-                Chat
+                {existingRequest?.status === "pending" ? "Request Pending" : "Request Rental"}
               </Button>
-              <Button onClick={requestRental}>Request Rental</Button>
             </div>
-
-            <Button
-              variant="ghost"
-              onClick={() => toast.message("Report is coming soon")}
-              className="w-full justify-center gap-2 text-muted-foreground"
-            >
-              <Flag className="h-4 w-4" />
-              Report
-            </Button>
           </div>
         </div>
+
+        <SimilarListings itemType="rental" currentId={rental.id} category={rental.category} />
+        <RecentlyViewedSection excludeItemType="rental" excludeItemId={rental.id} />
       </main>
+
+      <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Rental</DialogTitle>
+            <DialogDescription>
+              Send a rental request to {seller?.display_name ?? "the seller"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="duration">Rental Duration (days)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min={1}
+                value={durationDays}
+                onChange={(e) => setDurationDays(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pickupDate">Pickup Date</Label>
+              <Input
+                id="pickupDate"
+                type="date"
+                value={pickupDate}
+                onChange={(e) => setPickupDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pickupLocation">Pickup Location</Label>
+              <Input
+                id="pickupLocation"
+                value={pickupLocation}
+                onChange={(e) => setPickupLocation(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="message">Message (optional)</Label>
+              <Textarea
+                id="message"
+                value={requestMessage}
+                onChange={(e) => setRequestMessage(e.target.value)}
+                placeholder="Any notes for the seller..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRequestOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitRequest} disabled={createRequest.isPending}>
+              {createRequest.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Send Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

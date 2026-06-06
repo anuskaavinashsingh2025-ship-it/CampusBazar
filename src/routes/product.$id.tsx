@@ -1,22 +1,41 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { GraduationCap, Loader2, ArrowLeft, Star, Tag } from "lucide-react";
+import { ArrowLeft, GraduationCap, Loader2, ShoppingCart, Tag } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
+import { WishlistButton } from "@/components/wishlist/wishlist-button";
+import { ChatSellerButton } from "@/components/listing/chat-seller-button";
+import { ListingGallery } from "@/components/listing/listing-gallery";
+import { ListingStats } from "@/components/listing/listing-stats";
+import { RecentlyViewedSection } from "@/components/listing/recently-viewed-section";
+import { ReportListingDialog } from "@/components/listing/report-listing-dialog";
+import { SellerQuickView } from "@/components/listing/seller-quick-view";
+import { ShareListingButton } from "@/components/listing/share-listing-button";
+import { SimilarListings } from "@/components/listing/similar-listings";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { useTrackListingView } from "@/lib/listing-views";
+import {
+  isChatUnlockedForProductRequest,
+  useCreateProductRequest,
+  useProductRequestForListing,
+} from "@/lib/product-requests";
+import { getStoragePublicUrl } from "@/lib/storage-url";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/product/$id")({
   head: ({ params }) => ({
@@ -25,43 +44,50 @@ export const Route = createFileRoute("/product/$id")({
   component: ProductDetailsPage,
 });
 
+type ProductListingRow = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  custom_category: string | null;
+  price: number | string;
+  condition: string;
+  urgent_sale: boolean;
+  is_negotiable: boolean;
+  location: string | null;
+  status: "available" | "sold" | "hidden";
+  seller_id: string;
+  created_at: string;
+  views_count?: number;
+  wishlist_count?: number;
+};
+
+type SellerRow = {
+  user_id: string;
+  slug: string;
+  display_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+  rating_avg: number;
+  rating_count: number;
+};
+
+type ProductImageRow = { storage_path: string; sort_index: number };
+
+const PRODUCT_LISTINGS_TABLE =
+  "product_listings" as unknown as keyof Database["public"]["Tables"];
+const PRODUCT_IMAGES_TABLE = "product_images" as unknown as keyof Database["public"]["Tables"];
+
 function ProductDetailsPage() {
+  const navigate = useNavigate();
   const { id } = Route.useParams();
   const { user } = useAuth();
+  const createRequest = useCreateProductRequest();
+  const { data: existingRequest } = useProductRequestForListing(id, user?.id);
 
-  type ProductListingRow = {
-    id: string;
-    title: string;
-    description: string;
-    category: string;
-    custom_category: string | null;
-    price: number | string;
-    condition: string;
-    urgent_sale: boolean;
-    status: "available" | "sold" | "hidden";
-    seller_id: string;
-    created_at: string;
-  };
-
-  type SellerRow = {
-    user_id: string;
-    slug: string;
-    display_name: string;
-    avatar_url: string | null;
-    bio: string | null;
-    rating_avg: number;
-    rating_count: number;
-    total_sold: number;
-  };
-
-  type ProductImageRow = {
-    storage_path: string;
-    sort_index: number;
-  };
-
-  const PRODUCT_LISTINGS_TABLE =
-    "product_listings" as unknown as keyof Database["public"]["Tables"];
-  const PRODUCT_IMAGES_TABLE = "product_images" as unknown as keyof Database["public"]["Tables"];
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [offeredPrice, setOfferedPrice] = useState("");
+  const [offerMessage, setOfferMessage] = useState("");
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product", id],
@@ -69,7 +95,7 @@ function ProductDetailsPage() {
       const { data, error } = await supabase
         .from(PRODUCT_LISTINGS_TABLE)
         .select(
-          "id,title,description,category,custom_category,price,condition,urgent_sale,status,seller_id,created_at",
+          "id,title,description,category,custom_category,price,condition,urgent_sale,is_negotiable,location,status,seller_id,created_at,views_count,wishlist_count",
         )
         .eq("id", id)
         .eq("status", "available")
@@ -85,7 +111,7 @@ function ProductDetailsPage() {
       if (!product?.seller_id) return null;
       const { data, error } = await supabase
         .from("seller_profiles")
-        .select("user_id,slug,display_name,avatar_url,bio,rating_avg,rating_count,total_sold")
+        .select("user_id,slug,display_name,avatar_url,bio,rating_avg,rating_count")
         .eq("user_id", product.seller_id)
         .maybeSingle();
       if (error) throw error;
@@ -108,13 +134,83 @@ function ProductDetailsPage() {
     enabled: Boolean(product?.id),
   });
 
+  const formatInr = (amount: number) =>
+    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
+
+  const coverImageModels = useMemo(
+    () =>
+      (images ?? []).map((img) => ({
+        url: getStoragePublicUrl("product-images", img.storage_path),
+        sort_index: img.sort_index,
+      })),
+    [images],
+  );
+
+  const priceLabel = product ? formatInr(Number(product.price)) : "";
+
+  useTrackListingView(
+    "product",
+    product?.id,
+    product
+      ? {
+          title: product.title,
+          coverUrl: coverImageModels[0]?.url ?? null,
+          priceLabel,
+          route: `/product/${product.id}`,
+        }
+      : null,
+  );
+
   const categoryLabel =
     product?.category === "Others" && product?.custom_category
       ? product.custom_category
       : product?.category;
 
-  const formatInr = (amount: number) =>
-    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
+  const chatUnlocked = isChatUnlockedForProductRequest(existingRequest?.status);
+
+  const requireAuth = () => {
+    if (!user) {
+      navigate({ to: "/login" });
+      return false;
+    }
+    if (product && user.id === product.seller_id) {
+      toast.error("You can't buy your own listing.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleBuyNow = () => {
+    if (!requireAuth() || !product || !user) return;
+    createRequest.mutate({
+      productId: product.id,
+      buyerId: user.id,
+      sellerId: product.seller_id,
+      productTitle: product.title,
+      requestType: "buy",
+    });
+  };
+
+  const handleSubmitOffer = () => {
+    if (!requireAuth() || !product || !user) return;
+    const price = Number(offeredPrice);
+    if (!price || price <= 0) {
+      toast.error("Enter a valid offer price.");
+      return;
+    }
+    createRequest.mutate(
+      {
+        productId: product.id,
+        buyerId: user.id,
+        sellerId: product.seller_id,
+        productTitle: product.title,
+        requestType: "offer",
+        offeredPrice: price,
+        message: offerMessage,
+      },
+      { onSuccess: () => setOfferOpen(false) },
+    );
+  };
 
   if (isLoading) {
     return (
@@ -126,7 +222,7 @@ function ProductDetailsPage() {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-linear-to-b from-secondary/60 to-background">
+      <div className="min-h-screen bg-background">
         <header className="border-b bg-card/80 backdrop-blur">
           <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
             <Link to="/" className="flex items-center gap-2">
@@ -136,54 +232,24 @@ function ProductDetailsPage() {
               <span className="font-bold tracking-tight">CampusBazar</span>
             </Link>
             <Button asChild variant="ghost" size="sm">
-              <Link to="/marketplace">
+              <Link to="/">
                 <ArrowLeft className="h-4 w-4" />
-                Back to marketplace
+                Marketplace
               </Link>
             </Button>
           </div>
         </header>
-        <main className="mx-auto max-w-4xl px-4 py-10">
-          <div className="py-20 text-center">
-            <h1 className="text-2xl font-bold">Listing not found</h1>
-            <p className="mt-2 text-sm text-muted-foreground">This listing may be unavailable.</p>
-          </div>
+        <main className="mx-auto max-w-4xl px-4 py-10 text-center">
+          <h1 className="text-2xl font-bold">Listing not found</h1>
+          <p className="mt-2 text-sm text-muted-foreground">This listing may be unavailable.</p>
         </main>
       </div>
     );
   }
 
-  const coverImages = (images ?? []) as unknown as ProductImageRow[];
-  const reportProduct = async () => {
-    if (!user) {
-      toast.error("Please login to report.");
-      return;
-    }
-    const reason = window.prompt("Reason (scam/spam/fake/offensive):", "scam");
-    if (!reason) return;
-    const details = window.prompt("Any additional details?", "");
-    const { error } = await supabase.from("reports" as never).insert({
-      reporter_id: user.id,
-      target_type: "product",
-      product_id: product.id,
-      reason,
-      details: details || null,
-    } as never);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Report submitted.");
-  };
-
-  const coverImageModels = coverImages.map((img) => ({
-    url: supabase.storage.from("product-images").getPublicUrl(img.storage_path).data.publicUrl,
-    sort_index: img.sort_index,
-  }));
-
   return (
-    <div className="min-h-screen bg-linear-to-b from-secondary/60 to-background">
-      <header className="border-b bg-card/80 backdrop-blur">
+    <div className="min-h-screen bg-background pb-24">
+      <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <Link to="/" className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -192,7 +258,7 @@ function ProductDetailsPage() {
             <span className="font-bold tracking-tight">CampusBazar</span>
           </Link>
           <Button asChild variant="ghost" size="sm">
-            <Link to="/marketplace">
+            <Link to="/">
               <ArrowLeft className="h-4 w-4" />
               Marketplace
             </Link>
@@ -200,49 +266,30 @@ function ProductDetailsPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-8">
+      <main className="mx-auto max-w-4xl px-4 py-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Card className="overflow-hidden">
-            <CardContent className="p-0">
-              {coverImageModels.length ? (
-                <Carousel opts={{ loop: true }}>
-                  <CarouselContent>
-                    {coverImageModels.map((img) => (
-                      <CarouselItem key={img.sort_index} className="basis-full">
-                        <div className="w-full">
-                          <img
-                            src={img.url}
-                            alt={product.title}
-                            className="h-80 w-full object-cover"
-                          />
-                        </div>
-                      </CarouselItem>
-                    ))}
-                  </CarouselContent>
-                  <CarouselPrevious />
-                  <CarouselNext />
-                </Carousel>
-              ) : (
-                <div className="flex h-80 items-center justify-center bg-muted text-sm text-muted-foreground">
-                  No images
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ListingGallery
+            images={coverImageModels}
+            alt={product.title}
+            overlay={<WishlistButton itemType="product" itemId={product.id} className="right-4 top-4" />}
+          />
 
           <div className="space-y-4">
             <div>
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h1 className="truncate text-2xl font-bold">{product.title}</h1>
-                  <div className="mt-2 text-sm text-muted-foreground">
-                    Posted {new Date(product.created_at).toLocaleDateString()}
-                  </div>
-                </div>
+                <h1 className="text-2xl font-bold">{product.title}</h1>
                 {product.urgent_sale && <Badge variant="destructive">Urgent sale</Badge>}
               </div>
-
-              <div className="mt-3 text-xl font-semibold">{formatInr(Number(product.price))}</div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Posted {new Date(product.created_at).toLocaleDateString()}
+              </p>
+              <div className="mt-2 text-2xl font-bold text-primary">{priceLabel}</div>
+              <div className="mt-2">
+                <ListingStats
+                  viewsCount={product.views_count ?? 0}
+                  wishlistCount={product.wishlist_count ?? 0}
+                />
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -251,6 +298,8 @@ function ProductDetailsPage() {
                 {categoryLabel}
               </Badge>
               <Badge variant="outline">{product.condition}</Badge>
+              {product.is_negotiable && <Badge variant="outline">Negotiable</Badge>}
+              {product.location && <Badge variant="outline">{product.location}</Badge>}
             </div>
 
             <div className="rounded-xl border bg-card p-4">
@@ -260,79 +309,86 @@ function ProductDetailsPage() {
               </p>
             </div>
 
-            {seller && (
-              <div className="rounded-xl border bg-card p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      {seller.avatar_url ? (
-                        <AvatarImage src={seller.avatar_url} alt={seller.display_name} />
-                      ) : (
-                        <AvatarFallback>
-                          {seller.display_name.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                    <div>
-                      <div className="text-sm font-semibold">
-                        <Link
-                          to="/seller/$slug"
-                          params={{ slug: seller.slug }}
-                          className="hover:underline"
-                        >
-                          {seller.display_name}
-                        </Link>
-                      </div>
-                      <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                        {Number(seller.rating_avg ?? 0).toFixed(1)} ({seller.rating_count ?? 0}{" "}
-                        reviews)
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            {seller && <SellerQuickView seller={seller} />}
 
-                {seller.bio && <p className="mt-3 text-sm text-muted-foreground">{seller.bio}</p>}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-3"
-                  onClick={async () => {
-                    if (!user) {
-                      toast.error("Please login to report.");
-                      return;
-                    }
-                    const reason = window.prompt(
-                      "Reason (suspicious seller/spam/scam):",
-                      "suspicious",
-                    );
-                    if (!reason) return;
-                    const details = window.prompt("Any additional details?", "");
-                    const { error } = await supabase.from("reports" as never).insert({
-                      reporter_id: user.id,
-                      target_type: "seller",
-                      seller_user_id: seller.user_id,
-                      reason,
-                      details: details || null,
-                    } as never);
-                    if (error) {
-                      toast.error(error.message);
-                      return;
-                    }
-                    toast.success("Seller report submitted.");
-                  }}
-                >
-                  Report seller
+            <div className="flex flex-wrap gap-2">
+              <ShareListingButton title={product.title} />
+              <ReportListingDialog itemType="product" itemId={product.id} />
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <ChatSellerButton
+                sellerId={product.seller_id}
+                chatUnlocked={chatUnlocked}
+                className="w-full gap-2"
+              />
+              {product.is_negotiable && (
+                <Button variant="outline" onClick={() => requireAuth() && setOfferOpen(true)}>
+                  Make Offer
                 </Button>
-              </div>
-            )}
-
-            <Button variant="outline" onClick={reportProduct}>
-              Report product
-            </Button>
+              )}
+              <Button
+                className="gap-2 sm:col-span-2"
+                onClick={handleBuyNow}
+                disabled={createRequest.isPending || existingRequest?.status === "pending"}
+              >
+                {createRequest.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ShoppingCart className="h-4 w-4" />
+                )}
+                {existingRequest?.status === "pending"
+                  ? "Request Pending"
+                  : existingRequest?.status === "accepted"
+                    ? "Request Accepted"
+                    : "Buy Now"}
+              </Button>
+            </div>
           </div>
         </div>
+
+        <SimilarListings itemType="product" currentId={product.id} category={product.category} />
+        <RecentlyViewedSection excludeItemType="product" excludeItemId={product.id} />
       </main>
+
+      <Dialog open={offerOpen} onOpenChange={setOfferOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Make an Offer</DialogTitle>
+            <DialogDescription>
+              Suggest a price for &quot;{product.title}&quot;. Listed at {priceLabel}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="offerPrice">Your offer (₹)</Label>
+              <Input
+                id="offerPrice"
+                type="number"
+                min={1}
+                value={offeredPrice}
+                onChange={(e) => setOfferedPrice(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="offerMessage">Message (optional)</Label>
+              <Textarea
+                id="offerMessage"
+                value={offerMessage}
+                onChange={(e) => setOfferMessage(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOfferOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitOffer} disabled={createRequest.isPending}>
+              Send Offer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
