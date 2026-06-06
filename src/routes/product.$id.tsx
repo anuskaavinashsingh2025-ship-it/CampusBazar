@@ -320,6 +320,10 @@ function ProductDetailsPage() {
               <ChatSellerButton
                 sellerId={product.seller_id}
                 chatUnlocked={chatUnlocked}
+                contextType="product"
+                contextId={product.id}
+                listingTitle={product.title}
+                requestId={existingRequest?.id}
                 className="w-full gap-2"
               />
               {product.is_negotiable && (

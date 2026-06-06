@@ -363,6 +363,10 @@ function RentDetailsPage() {
               <ChatSellerButton
                 sellerId={rental.seller_id}
                 chatUnlocked={chatUnlocked}
+                contextType="rental"
+                contextId={rental.id}
+                listingTitle={rental.title}
+                requestId={existingRequest?.id}
                 className="w-full gap-2"
               />
               <Button

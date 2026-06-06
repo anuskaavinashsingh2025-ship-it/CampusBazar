@@ -38,7 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export const Route = createFileRoute("/food/$id")({
+export const Route = createFileRoute("/food_/$id")({
   head: () => ({
     meta: [{ title: "Food listing — CampusBazar" }],
   }),
@@ -268,6 +268,10 @@ function FoodDetailsPage() {
               <ChatSellerButton
                 sellerId={listing.seller_id}
                 chatUnlocked={chatUnlocked}
+                contextType="food"
+                contextId={listing.id}
+                listingTitle={listing.product_name}
+                requestId={existingOrder?.id}
                 className="w-full gap-2"
               />
               <Button

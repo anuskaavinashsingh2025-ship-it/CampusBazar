@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useCallback, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,7 +34,21 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { ChatMutationResult } from "@/lib/chat";
 import { cn } from "@/lib/utils";
+
+function useOpenChatOnAccept() {
+  const navigate = useNavigate();
+  return useCallback((result: ChatMutationResult | undefined, acceptedMessage: string) => {
+    if (result?.conversationId) {
+      toast.success("Request accepted — opening chat with buyer");
+      navigate({ to: "/chats/$id", params: { id: result.conversationId } });
+      return;
+    }
+    toast.success(acceptedMessage);
+    navigate({ to: "/chats" });
+  }, [navigate]);
+}
 
 export const Route = createFileRoute("/_authenticated/requests")({
   head: () => ({
@@ -127,6 +141,7 @@ function ProductRequestsTab({
   const { data: sellerReqs = [], isLoading: ls } = useSellerProductRequests(role === "seller" ? userId : undefined);
   const { data: buyerReqs = [], isLoading: lb } = useBuyerProductRequests(role === "buyer" ? userId : undefined);
   const update = useUpdateProductRequest();
+  const openChat = useOpenChatOnAccept();
   const requests = role === "seller" ? sellerReqs : buyerReqs;
   const isLoading = role === "seller" ? ls : lb;
 
@@ -140,7 +155,10 @@ function ProductRequestsTab({
         notificationTitle: "Purchase Request Accepted — Chat Unlocked",
         notificationDescription: `Your request for "${req.product?.title ?? "the item"}" was accepted. You can now chat with the seller.`,
       },
-      { onSuccess: () => toast.success("Request accepted") },
+      {
+        onSuccess: (result) =>
+          openChat(result, `Request accepted for "${req.product?.title ?? "the item"}"`),
+      },
     );
   };
 
@@ -251,6 +269,7 @@ function RentalRequestsTab({
   const { data: sellerReqs = [], isLoading: ls } = useSellerRentalRequests(role === "seller" ? userId : undefined);
   const { data: buyerReqs = [], isLoading: lb } = useBuyerRentalRequests(role === "buyer" ? userId : undefined);
   const update = useUpdateRentalRequest();
+  const openChat = useOpenChatOnAccept();
   const requests = role === "seller" ? sellerReqs : buyerReqs;
   const isLoading = role === "seller" ? ls : lb;
 
@@ -264,7 +283,10 @@ function RentalRequestsTab({
         notificationTitle: "Rental Request Accepted — Chat Unlocked",
         notificationDescription: `Your request for "${req.rental?.title ?? "the item"}" was accepted. You can now chat with the seller.`,
       },
-      { onSuccess: () => toast.success("Request accepted") },
+      {
+        onSuccess: (result) =>
+          openChat(result, `Rental request accepted for "${req.rental?.title ?? "the item"}"`),
+      },
     );
   };
 
@@ -344,13 +366,19 @@ function FoodOrdersTab({ userId, role }: { userId: string | undefined; role: "se
   const { data: sellerOrders = [], isLoading: ls } = useSellerFoodOrders(role === "seller" ? userId : undefined);
   const { data: buyerOrders = [], isLoading: lb } = useBuyerFoodOrders(role === "buyer" ? userId : undefined);
   const update = useUpdateFoodOrder();
+  const openChat = useOpenChatOnAccept();
   const orders = role === "seller" ? sellerOrders : buyerOrders;
   const isLoading = role === "seller" ? ls : lb;
 
   const act = (order: FoodOrderRow, status: FoodOrderRow["status"], title: string, desc: string, notify: string) => {
     update.mutate(
       { orderId: order.id, status, notifyUserId: notify, notificationTitle: title, notificationDescription: desc },
-      { onSuccess: () => toast.success(title) },
+      {
+        onSuccess: (result) => {
+          if (status === "accepted") openChat(result, title);
+          else toast.success(title);
+        },
+      },
     );
   };
 
@@ -433,13 +461,19 @@ function NotesRequestsTab({ userId, role }: { userId: string | undefined; role: 
   const { data: sellerReqs = [], isLoading: ls } = useSellerNotesPurchases(role === "seller" ? userId : undefined);
   const { data: buyerReqs = [], isLoading: lb } = useBuyerNotesPurchases(role === "buyer" ? userId : undefined);
   const update = useUpdateNotesPurchase();
+  const openChat = useOpenChatOnAccept();
   const requests = role === "seller" ? sellerReqs : buyerReqs;
   const isLoading = role === "seller" ? ls : lb;
 
   const act = (req: NotesPurchaseRow, status: NotesPurchaseRow["status"], title: string, desc: string, notify: string) => {
     update.mutate(
       { requestId: req.id, status, notifyUserId: notify, notificationTitle: title, notificationDescription: desc },
-      { onSuccess: () => toast.success(title) },
+      {
+        onSuccess: (result) => {
+          if (status === "accepted") openChat(result, title);
+          else toast.success(title);
+        },
+      },
     );
   };
 

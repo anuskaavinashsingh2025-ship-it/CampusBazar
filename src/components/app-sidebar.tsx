@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
+import { useUnreadChatCount } from "@/lib/chat";
 import { useUnreadNotificationCount } from "@/lib/notifications";
 
 const mainItems = [
@@ -40,7 +41,7 @@ const mainItems = [
   { title: "Food Hub", url: "/food", icon: UtensilsCrossed, external: true },
   { title: "Sell", url: "/upload-product", icon: Tag },
   { title: "Notes Hub", url: "/notes", icon: FileText, external: true },
-  { title: "Chats", url: "/chats", icon: MessageSquare, disabled: true },
+  { title: "Chats", url: "/chats", icon: MessageSquare, showBadge: true },
   { title: "Requests", url: "/requests", icon: Shield },
   { title: "Seller Profile", url: "/seller-profile", icon: Store },
 ] as const;
@@ -62,6 +63,7 @@ export function AppSidebar() {
   const { user, isAdmin, signOut } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { data: unreadCount = 0 } = useUnreadNotificationCount(user?.id);
+  const { data: unreadChats = 0 } = useUnreadChatCount(user?.id);
 
   const handleSignOut = async () => {
     await signOut();
@@ -94,29 +96,27 @@ export function AppSidebar() {
             <SidebarMenu>
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  {"disabled" in item && item.disabled ? (
-                    <SidebarMenuButton disabled className="opacity-60">
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isNavActive(pathname, item.url, "external" in item ? item.external : undefined)}
+                  >
+                    <Link
+                      to={item.url}
+                      className="flex items-center gap-2"
+                      {...("external" in item && item.external ? { target: "_self" } : {})}
+                    >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
-                      <span className="ml-auto text-[10px] uppercase text-muted-foreground">
-                        Soon
-                      </span>
-                    </SidebarMenuButton>
-                  ) : (
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isNavActive(pathname, item.url, item.external)}
-                    >
-                      <Link
-                        to={item.url}
-                        className="flex items-center gap-2"
-                        {...(item.external ? { target: "_self" } : {})}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  )}
+                      {"showBadge" in item && item.showBadge && unreadChats > 0 && (
+                        <Badge
+                          variant="destructive"
+                          className="ml-auto h-5 min-w-5 rounded-full px-1.5 text-[10px]"
+                        >
+                          {unreadChats > 99 ? "99+" : unreadChats}
+                        </Badge>
+                      )}
+                    </Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

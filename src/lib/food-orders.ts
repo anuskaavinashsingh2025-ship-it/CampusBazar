@@ -3,6 +3,12 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  completeConversationForRequest,
+  ensureConversationOnAccept,
+  invalidateChatQueries,
+  type ChatMutationResult,
+} from "@/lib/chat";
 import { createNotification } from "@/lib/notifications";
 
 export type FoodOrderStatus = "pending" | "accepted" | "rejected" | "completed" | "cancelled";
@@ -20,6 +26,7 @@ export type FoodOrderRow = {
 };
 
 const ORDERS_TABLE = "food_orders" as unknown as keyof Database["public"]["Tables"];
+const FOOD_LISTINGS_TABLE = "food_listings" as unknown as keyof Database["public"]["Tables"];
 
 export function useFoodOrderForListing(
   foodListingId: string | undefined,
@@ -132,7 +139,8 @@ export function useUpdateFoodOrder() {
       notifyUserId?: string;
       notificationTitle?: string;
       notificationDescription?: string;
-    }) => {
+    }): Promise<ChatMutationResult> => {
+      let conversationId: string | undefined;
       const { error } = await supabase
         .from(ORDERS_TABLE)
         .update({ status: input.status })
@@ -150,10 +158,53 @@ export function useUpdateFoodOrder() {
           metadata: { orderId: input.orderId },
         });
       }
+
+      if (input.status === "accepted" || input.status === "completed") {
+        const { data: orderRow } = await supabase
+          .from(ORDERS_TABLE)
+          .select("buyer_id,seller_id,food_listing_id")
+          .eq("id", input.orderId)
+          .maybeSingle();
+
+        if (orderRow) {
+          const row = orderRow as {
+            buyer_id: string;
+            seller_id: string;
+            food_listing_id: string;
+          };
+          const { data: listing } = await supabase
+            .from(FOOD_LISTINGS_TABLE)
+            .select("product_name")
+            .eq("id", row.food_listing_id)
+            .maybeSingle();
+          const title =
+            (listing as { product_name: string } | null)?.product_name ?? "Food listing";
+
+          if (input.status === "accepted") {
+            conversationId = await ensureConversationOnAccept({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "food",
+              contextId: row.food_listing_id,
+              requestId: input.orderId,
+              listingTitle: title,
+              notifyBuyer: true,
+            });
+          } else {
+            await completeConversationForRequest({
+              buyerId: row.buyer_id,
+              contextType: "food",
+              contextId: row.food_listing_id,
+            });
+          }
+        }
+      }
+      return { conversationId };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["food_orders"] });
       void queryClient.invalidateQueries({ queryKey: ["food"] });
+      invalidateChatQueries(queryClient);
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Could not update order");

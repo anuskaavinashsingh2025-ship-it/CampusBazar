@@ -3,6 +3,12 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  completeConversationForRequest,
+  ensureConversationOnAccept,
+  invalidateChatQueries,
+  type ChatMutationResult,
+} from "@/lib/chat";
 import { createNotification } from "@/lib/notifications";
 
 export type RentalRequestStatus =
@@ -245,7 +251,8 @@ export function useUpdateRentalRequest() {
       notificationTitle?: string;
       notificationDescription?: string;
       listingStatus?: "available" | "rented_out" | "unavailable";
-    }) => {
+    }): Promise<ChatMutationResult> => {
+      let conversationId: string | undefined;
       const { error } = await supabase
         .from(REQUESTS_TABLE)
         .update({ status: input.status })
@@ -271,11 +278,49 @@ export function useUpdateRentalRequest() {
           metadata: { requestId: input.requestId, rentalId: input.rentalId },
         });
       }
+
+      if (input.status === "accepted" || input.status === "completed") {
+        const { data: reqRow } = await supabase
+          .from(REQUESTS_TABLE)
+          .select("buyer_id,seller_id,rental_id")
+          .eq("id", input.requestId)
+          .maybeSingle();
+
+        if (reqRow) {
+          const row = reqRow as { buyer_id: string; seller_id: string; rental_id: string };
+          const { data: rental } = await supabase
+            .from(RENTALS_TABLE)
+            .select("title")
+            .eq("id", row.rental_id)
+            .maybeSingle();
+          const title = (rental as { title: string } | null)?.title ?? input.rentalTitle ?? "Rental listing";
+
+          if (input.status === "accepted") {
+            conversationId = await ensureConversationOnAccept({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "rental",
+              contextId: row.rental_id,
+              requestId: input.requestId,
+              listingTitle: title,
+              notifyBuyer: true,
+            });
+          } else {
+            await completeConversationForRequest({
+              buyerId: row.buyer_id,
+              contextType: "rental",
+              contextId: row.rental_id,
+            });
+          }
+        }
+      }
+      return { conversationId };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["rental_requests"] });
       void queryClient.invalidateQueries({ queryKey: ["rentals"] });
       void queryClient.invalidateQueries({ queryKey: ["rental"] });
+      invalidateChatQueries(queryClient);
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Could not update request");

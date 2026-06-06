@@ -20,8 +20,8 @@ import { Route as RentIndexRouteImport } from './routes/rent.index'
 import { Route as SellerSlugRouteImport } from './routes/seller.$slug'
 import { Route as RentIdRouteImport } from './routes/rent_.$id'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
-import { Route as NotesIdRouteImport } from './routes/notes.$id'
-import { Route as FoodIdRouteImport } from './routes/food.$id'
+import { Route as NotesIdRouteImport } from './routes/notes_.$id'
+import { Route as FoodIdRouteImport } from './routes/food_.$id'
 import { Route as AuthenticatedWishlistRouteImport } from './routes/_authenticated/wishlist'
 import { Route as AuthenticatedUploadRentalRouteImport } from './routes/_authenticated/upload-rental'
 import { Route as AuthenticatedUploadProductRouteImport } from './routes/_authenticated/upload-product'
@@ -36,7 +36,9 @@ import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedNotificationSettingsRouteImport } from './routes/_authenticated/notification-settings'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedChatsRouteImport } from './routes/_authenticated/chats'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedChatsIdRouteImport } from './routes/_authenticated/chats_.$id'
 
 const NotesRoute = NotesRouteImport.update({
   id: '/notes',
@@ -93,14 +95,14 @@ const ProductIdRoute = ProductIdRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotesIdRoute = NotesIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => NotesRoute,
+  id: '/notes_/$id',
+  path: '/notes/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const FoodIdRoute = FoodIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => FoodRoute,
+  id: '/food_/$id',
+  path: '/food/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWishlistRoute = AuthenticatedWishlistRouteImport.update({
   id: '/wishlist',
@@ -181,20 +183,31 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedChatsRoute = AuthenticatedChatsRouteImport.update({
+  id: '/chats',
+  path: '/chats',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedChatsIdRoute = AuthenticatedChatsIdRouteImport.update({
+  id: '/chats_/$id',
+  path: '/chats/$id',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/complete-profile': typeof CompleteProfileRoute
-  '/food': typeof FoodRouteWithChildren
+  '/food': typeof FoodRoute
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
-  '/notes': typeof NotesRouteWithChildren
+  '/notes': typeof NotesRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/chats': typeof AuthenticatedChatsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/notification-settings': typeof AuthenticatedNotificationSettingsRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
@@ -215,15 +228,17 @@ export interface FileRoutesByFullPath {
   '/rent/$id': typeof RentIdRoute
   '/seller/$slug': typeof SellerSlugRoute
   '/rent/': typeof RentIndexRoute
+  '/chats/$id': typeof AuthenticatedChatsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/complete-profile': typeof CompleteProfileRoute
-  '/food': typeof FoodRouteWithChildren
+  '/food': typeof FoodRoute
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
-  '/notes': typeof NotesRouteWithChildren
+  '/notes': typeof NotesRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/chats': typeof AuthenticatedChatsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/notification-settings': typeof AuthenticatedNotificationSettingsRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
@@ -244,17 +259,19 @@ export interface FileRoutesByTo {
   '/rent/$id': typeof RentIdRoute
   '/seller/$slug': typeof SellerSlugRoute
   '/rent': typeof RentIndexRoute
+  '/chats/$id': typeof AuthenticatedChatsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/complete-profile': typeof CompleteProfileRoute
-  '/food': typeof FoodRouteWithChildren
+  '/food': typeof FoodRoute
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
-  '/notes': typeof NotesRouteWithChildren
+  '/notes': typeof NotesRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/chats': typeof AuthenticatedChatsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/notification-settings': typeof AuthenticatedNotificationSettingsRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
@@ -269,12 +286,13 @@ export interface FileRoutesById {
   '/_authenticated/upload-product': typeof AuthenticatedUploadProductRoute
   '/_authenticated/upload-rental': typeof AuthenticatedUploadRentalRoute
   '/_authenticated/wishlist': typeof AuthenticatedWishlistRoute
-  '/food/$id': typeof FoodIdRoute
-  '/notes/$id': typeof NotesIdRoute
+  '/food_/$id': typeof FoodIdRoute
+  '/notes_/$id': typeof NotesIdRoute
   '/product/$id': typeof ProductIdRoute
   '/rent_/$id': typeof RentIdRoute
   '/seller/$slug': typeof SellerSlugRoute
   '/rent/': typeof RentIndexRoute
+  '/_authenticated/chats_/$id': typeof AuthenticatedChatsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -286,6 +304,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/notes'
     | '/admin'
+    | '/chats'
     | '/dashboard'
     | '/notification-settings'
     | '/notifications'
@@ -306,6 +325,7 @@ export interface FileRouteTypes {
     | '/rent/$id'
     | '/seller/$slug'
     | '/rent/'
+    | '/chats/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -315,6 +335,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/notes'
     | '/admin'
+    | '/chats'
     | '/dashboard'
     | '/notification-settings'
     | '/notifications'
@@ -335,6 +356,7 @@ export interface FileRouteTypes {
     | '/rent/$id'
     | '/seller/$slug'
     | '/rent'
+    | '/chats/$id'
   id:
     | '__root__'
     | '/'
@@ -345,6 +367,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/notes'
     | '/_authenticated/admin'
+    | '/_authenticated/chats'
     | '/_authenticated/dashboard'
     | '/_authenticated/notification-settings'
     | '/_authenticated/notifications'
@@ -359,22 +382,25 @@ export interface FileRouteTypes {
     | '/_authenticated/upload-product'
     | '/_authenticated/upload-rental'
     | '/_authenticated/wishlist'
-    | '/food/$id'
-    | '/notes/$id'
+    | '/food_/$id'
+    | '/notes_/$id'
     | '/product/$id'
     | '/rent_/$id'
     | '/seller/$slug'
     | '/rent/'
+    | '/_authenticated/chats_/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   CompleteProfileRoute: typeof CompleteProfileRoute
-  FoodRoute: typeof FoodRouteWithChildren
+  FoodRoute: typeof FoodRoute
   LoginRoute: typeof LoginRoute
   MarketplaceRoute: typeof MarketplaceRoute
-  NotesRoute: typeof NotesRouteWithChildren
+  NotesRoute: typeof NotesRoute
+  FoodIdRoute: typeof FoodIdRoute
+  NotesIdRoute: typeof NotesIdRoute
   ProductIdRoute: typeof ProductIdRoute
   RentIdRoute: typeof RentIdRoute
   SellerSlugRoute: typeof SellerSlugRoute
@@ -460,19 +486,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/notes/$id': {
-      id: '/notes/$id'
-      path: '/$id'
+    '/notes_/$id': {
+      id: '/notes_/$id'
+      path: '/notes/$id'
       fullPath: '/notes/$id'
       preLoaderRoute: typeof NotesIdRouteImport
-      parentRoute: typeof NotesRoute
+      parentRoute: typeof rootRouteImport
     }
-    '/food/$id': {
-      id: '/food/$id'
-      path: '/$id'
+    '/food_/$id': {
+      id: '/food_/$id'
+      path: '/food/$id'
       fullPath: '/food/$id'
       preLoaderRoute: typeof FoodIdRouteImport
-      parentRoute: typeof FoodRoute
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/wishlist': {
       id: '/_authenticated/wishlist'
@@ -572,6 +598,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/chats': {
+      id: '/_authenticated/chats'
+      path: '/chats'
+      fullPath: '/chats'
+      preLoaderRoute: typeof AuthenticatedChatsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin': {
       id: '/_authenticated/admin'
       path: '/admin'
@@ -579,11 +612,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/chats_/$id': {
+      id: '/_authenticated/chats_/$id'
+      path: '/chats/$id'
+      fullPath: '/chats/$id'
+      preLoaderRoute: typeof AuthenticatedChatsIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedChatsRoute: typeof AuthenticatedChatsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedNotificationSettingsRoute: typeof AuthenticatedNotificationSettingsRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
@@ -598,10 +639,12 @@ interface AuthenticatedRouteChildren {
   AuthenticatedUploadProductRoute: typeof AuthenticatedUploadProductRoute
   AuthenticatedUploadRentalRoute: typeof AuthenticatedUploadRentalRoute
   AuthenticatedWishlistRoute: typeof AuthenticatedWishlistRoute
+  AuthenticatedChatsIdRoute: typeof AuthenticatedChatsIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedChatsRoute: AuthenticatedChatsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedNotificationSettingsRoute:
     AuthenticatedNotificationSettingsRoute,
@@ -617,40 +660,23 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedUploadProductRoute: AuthenticatedUploadProductRoute,
   AuthenticatedUploadRentalRoute: AuthenticatedUploadRentalRoute,
   AuthenticatedWishlistRoute: AuthenticatedWishlistRoute,
+  AuthenticatedChatsIdRoute: AuthenticatedChatsIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
-interface FoodRouteChildren {
-  FoodIdRoute: typeof FoodIdRoute
-}
-
-const FoodRouteChildren: FoodRouteChildren = {
-  FoodIdRoute: FoodIdRoute,
-}
-
-const FoodRouteWithChildren = FoodRoute._addFileChildren(FoodRouteChildren)
-
-interface NotesRouteChildren {
-  NotesIdRoute: typeof NotesIdRoute
-}
-
-const NotesRouteChildren: NotesRouteChildren = {
-  NotesIdRoute: NotesIdRoute,
-}
-
-const NotesRouteWithChildren = NotesRoute._addFileChildren(NotesRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   CompleteProfileRoute: CompleteProfileRoute,
-  FoodRoute: FoodRouteWithChildren,
+  FoodRoute: FoodRoute,
   LoginRoute: LoginRoute,
   MarketplaceRoute: MarketplaceRoute,
-  NotesRoute: NotesRouteWithChildren,
+  NotesRoute: NotesRoute,
+  FoodIdRoute: FoodIdRoute,
+  NotesIdRoute: NotesIdRoute,
   ProductIdRoute: ProductIdRoute,
   RentIdRoute: RentIdRoute,
   SellerSlugRoute: SellerSlugRoute,

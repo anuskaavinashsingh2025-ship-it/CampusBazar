@@ -3,6 +3,12 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  completeConversationForRequest,
+  ensureConversationOnAccept,
+  invalidateChatQueries,
+  type ChatMutationResult,
+} from "@/lib/chat";
 import { createNotification } from "@/lib/notifications";
 
 export type ProductRequestStatus = "pending" | "accepted" | "rejected" | "completed" | "cancelled";
@@ -207,7 +213,8 @@ export function useUpdateProductRequest() {
       notificationTitle?: string;
       notificationDescription?: string;
       markSold?: boolean;
-    }) => {
+    }): Promise<ChatMutationResult> => {
+      let conversationId: string | undefined;
       const { error } = await supabase
         .from(REQUESTS_TABLE)
         .update({ status: input.status })
@@ -233,10 +240,48 @@ export function useUpdateProductRequest() {
           metadata: { requestId: input.requestId, productId: input.productId },
         });
       }
+
+      if (input.status === "accepted" || input.status === "completed") {
+        const { data: reqRow } = await supabase
+          .from(REQUESTS_TABLE)
+          .select("buyer_id,seller_id,product_id")
+          .eq("id", input.requestId)
+          .maybeSingle();
+
+        if (reqRow) {
+          const row = reqRow as { buyer_id: string; seller_id: string; product_id: string };
+          const { data: product } = await supabase
+            .from(PRODUCTS_TABLE)
+            .select("title")
+            .eq("id", row.product_id)
+            .maybeSingle();
+          const title = (product as { title: string } | null)?.title ?? "Product listing";
+
+          if (input.status === "accepted") {
+            conversationId = await ensureConversationOnAccept({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "product",
+              contextId: row.product_id,
+              requestId: input.requestId,
+              listingTitle: title,
+              notifyBuyer: true,
+            });
+          } else {
+            await completeConversationForRequest({
+              buyerId: row.buyer_id,
+              contextType: "product",
+              contextId: row.product_id,
+            });
+          }
+        }
+      }
+      return { conversationId };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["product_requests"] });
       void queryClient.invalidateQueries({ queryKey: ["product"] });
+      invalidateChatQueries(queryClient);
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Could not update request");

@@ -3,6 +3,12 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  completeConversationForRequest,
+  ensureConversationOnAccept,
+  invalidateChatQueries,
+  type ChatMutationResult,
+} from "@/lib/chat";
 import { createNotification } from "@/lib/notifications";
 
 export type NotesPurchaseStatus = "pending" | "accepted" | "rejected" | "completed" | "cancelled";
@@ -19,6 +25,7 @@ export type NotesPurchaseRow = {
 };
 
 const REQUESTS_TABLE = "notes_purchase_requests" as unknown as keyof Database["public"]["Tables"];
+const NOTES_LISTINGS_TABLE = "notes_listings" as unknown as keyof Database["public"]["Tables"];
 
 export function useNotesPurchaseForListing(
   notesListingId: string | undefined,
@@ -129,7 +136,8 @@ export function useUpdateNotesPurchase() {
       notifyUserId?: string;
       notificationTitle?: string;
       notificationDescription?: string;
-    }) => {
+    }): Promise<ChatMutationResult> => {
+      let conversationId: string | undefined;
       const { error } = await supabase
         .from(REQUESTS_TABLE)
         .update({ status: input.status })
@@ -147,10 +155,52 @@ export function useUpdateNotesPurchase() {
           metadata: { requestId: input.requestId },
         });
       }
+
+      if (input.status === "accepted" || input.status === "completed") {
+        const { data: reqRow } = await supabase
+          .from(REQUESTS_TABLE)
+          .select("buyer_id,seller_id,notes_listing_id")
+          .eq("id", input.requestId)
+          .maybeSingle();
+
+        if (reqRow) {
+          const row = reqRow as {
+            buyer_id: string;
+            seller_id: string;
+            notes_listing_id: string;
+          };
+          const { data: listing } = await supabase
+            .from(NOTES_LISTINGS_TABLE)
+            .select("title")
+            .eq("id", row.notes_listing_id)
+            .maybeSingle();
+          const title = (listing as { title: string } | null)?.title ?? "Notes listing";
+
+          if (input.status === "accepted") {
+            conversationId = await ensureConversationOnAccept({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "notes",
+              contextId: row.notes_listing_id,
+              requestId: input.requestId,
+              listingTitle: title,
+              notifyBuyer: true,
+            });
+          } else {
+            await completeConversationForRequest({
+              buyerId: row.buyer_id,
+              contextType: "notes",
+              contextId: row.notes_listing_id,
+            });
+          }
+        }
+      }
+      return { conversationId };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["notes_purchases"] });
       void queryClient.invalidateQueries({ queryKey: ["notes_listing"] });
+      invalidateChatQueries(queryClient);
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Could not update request");

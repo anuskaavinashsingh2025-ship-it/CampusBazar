@@ -20,6 +20,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
+import { useUnreadChatCount } from "@/lib/chat";
+import { useUnreadNotificationCount } from "@/lib/notifications";
 import { fetchWishlist } from "@/lib/wishlist";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,6 +105,9 @@ function UserProfilePage() {
     enabled: Boolean(user?.id),
   });
 
+  const { data: unreadChats = 0 } = useUnreadChatCount(user?.id);
+  const { data: unreadNotifications = 0 } = useUnreadNotificationCount(user?.id);
+
   const initials = useMemo(() => {
     const name = profile?.full_name ?? user?.email ?? "U";
     return name
@@ -179,10 +184,10 @@ function UserProfilePage() {
 
   const quickLinks = [
     { label: "Wishlist", icon: Heart, to: "/wishlist", count: wishlistCount },
-    { label: "My Orders", icon: ShoppingBag, to: null, count: 0 },
-    { label: "My Chats", icon: MessageSquare, to: null, count: 0 },
-    { label: "Notifications", icon: Bell, to: null, count: 0 },
-    { label: "Settings", icon: Settings, to: null, count: null },
+    { label: "My Orders", icon: ShoppingBag, to: "/requests", count: null },
+    { label: "My Chats", icon: MessageSquare, to: "/chats", count: unreadChats },
+    { label: "Notifications", icon: Bell, to: "/notifications", count: unreadNotifications },
+    { label: "Settings", icon: Settings, to: "/notification-settings", count: null },
   ] as const;
 
   const stats = [

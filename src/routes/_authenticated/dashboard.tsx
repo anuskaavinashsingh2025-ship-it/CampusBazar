@@ -1,13 +1,15 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Package, CalendarClock, Heart, Star, Store, User } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { MessageSquare, Package, CalendarClock, Heart, Star, Store, User } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
+import { useUnreadChatCount } from "@/lib/chat";
 import { fetchWishlist } from "@/lib/wishlist";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -57,6 +59,8 @@ function DashboardPage() {
     },
     enabled: Boolean(user?.id),
   });
+
+  const { data: unreadChats = 0 } = useUnreadChatCount(user?.id);
 
   const { data: sellerRating = "—" } = useQuery({
     queryKey: ["seller_rating", user?.id],
@@ -124,9 +128,35 @@ function DashboardPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MessageSquare className="h-4 w-4 text-primary" />
+            My Chats
+            {unreadChats > 0 && (
+              <Badge variant="destructive" className="text-[10px]">
+                {unreadChats} unread
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Chats unlock after a seller accepts your request. No open DMs — every conversation is
+            tied to a listing.
+          </p>
+          <Button asChild>
+            <Link to="/chats">Open My Chats</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Quick links</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/chats">My Chats</Link>
+          </Button>
           <Button variant="outline" asChild>
             <Link to="/wishlist">Wishlist</Link>
           </Button>
