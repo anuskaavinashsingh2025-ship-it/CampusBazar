@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { HubNavStrip } from "@/components/hub-nav-strip";
 
 export const Route = createFileRoute("/notes")({
   head: () => ({
@@ -181,6 +182,8 @@ function NotesHubPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-4">
+        <HubNavStrip active="notes" className="mb-4" />
+
         <div className="mb-3 grid grid-cols-3 gap-2">
           <Button variant="outline" onClick={() => openDetailsForm("sell")}>
             Sell details

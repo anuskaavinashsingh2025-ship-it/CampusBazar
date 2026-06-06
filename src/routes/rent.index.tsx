@@ -43,8 +43,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { HubNavStrip } from "@/components/hub-nav-strip";
 
-export const Route = createFileRoute("/rent")({
+export const Route = createFileRoute("/rent/")({
   head: () => ({
     meta: [{ title: "Rent — CampusBazar" }],
   }),
@@ -302,6 +303,8 @@ function RentFeedPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6">
+        <HubNavStrip active="rent" className="mb-4" />
+
         <section className="mb-8 grid gap-6 rounded-2xl border bg-card p-6 sm:grid-cols-2 sm:items-center">
           <div className="space-y-3">
             <h1 className="text-2xl font-bold leading-tight sm:text-3xl">

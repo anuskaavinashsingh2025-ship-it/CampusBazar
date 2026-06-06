@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth";
 import type { Database } from "@/integrations/supabase/types";
 
 import { CategoryStrip } from "@/components/category-strip";
+import { HubNavStrip } from "@/components/hub-nav-strip";
 import { RecentlyViewedSection } from "@/components/listing/recently-viewed-section";
 import { ProductCard, type ProductCardModel } from "@/components/marketplace/product-card";
 import { Button } from "@/components/ui/button";
@@ -252,6 +253,27 @@ function MarketplaceHome() {
                 <Button
                   variant="ghost"
                   className="w-full justify-start"
+                  onClick={() => navigate({ to: "/rent" })}
+                >
+                  Rent
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={() => navigate({ to: "/food" })}
+                >
+                  Food Hub
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={() => navigate({ to: "/notes" })}
+                >
+                  Notes Hub
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start"
                   onClick={() => navigate({ to: "/dashboard" })}
                   disabled={!user}
                 >
@@ -344,6 +366,8 @@ function MarketplaceHome() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 pb-10 pt-4">
+        <HubNavStrip active="home" className="mb-4" />
+
         <Card className="overflow-hidden border-border/60">
           <CardContent className="grid gap-4 p-4 sm:grid-cols-2 sm:items-center">
             <div className="space-y-2">

@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as RentRouteImport } from './routes/rent'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as LoginRouteImport } from './routes/login'
@@ -17,8 +16,9 @@ import { Route as FoodRouteImport } from './routes/food'
 import { Route as CompleteProfileRouteImport } from './routes/complete-profile'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RentIndexRouteImport } from './routes/rent.index'
 import { Route as SellerSlugRouteImport } from './routes/seller.$slug'
-import { Route as RentIdRouteImport } from './routes/rent.$id'
+import { Route as RentIdRouteImport } from './routes/rent_.$id'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as NotesIdRouteImport } from './routes/notes.$id'
 import { Route as FoodIdRouteImport } from './routes/food.$id'
@@ -38,11 +38,6 @@ import { Route as AuthenticatedNotificationSettingsRouteImport } from './routes/
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
-const RentRoute = RentRouteImport.update({
-  id: '/rent',
-  path: '/rent',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const NotesRoute = NotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -77,15 +72,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RentIndexRoute = RentIndexRouteImport.update({
+  id: '/rent/',
+  path: '/rent/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SellerSlugRoute = SellerSlugRouteImport.update({
   id: '/seller/$slug',
   path: '/seller/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RentIdRoute = RentIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => RentRoute,
+  id: '/rent_/$id',
+  path: '/rent/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ProductIdRoute = ProductIdRouteImport.update({
   id: '/product/$id',
@@ -194,7 +194,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/notes': typeof NotesRouteWithChildren
-  '/rent': typeof RentRouteWithChildren
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/notification-settings': typeof AuthenticatedNotificationSettingsRoute
@@ -215,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/product/$id': typeof ProductIdRoute
   '/rent/$id': typeof RentIdRoute
   '/seller/$slug': typeof SellerSlugRoute
+  '/rent/': typeof RentIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -223,7 +223,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/notes': typeof NotesRouteWithChildren
-  '/rent': typeof RentRouteWithChildren
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/notification-settings': typeof AuthenticatedNotificationSettingsRoute
@@ -244,6 +243,7 @@ export interface FileRoutesByTo {
   '/product/$id': typeof ProductIdRoute
   '/rent/$id': typeof RentIdRoute
   '/seller/$slug': typeof SellerSlugRoute
+  '/rent': typeof RentIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -254,7 +254,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/notes': typeof NotesRouteWithChildren
-  '/rent': typeof RentRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/notification-settings': typeof AuthenticatedNotificationSettingsRoute
@@ -273,8 +272,9 @@ export interface FileRoutesById {
   '/food/$id': typeof FoodIdRoute
   '/notes/$id': typeof NotesIdRoute
   '/product/$id': typeof ProductIdRoute
-  '/rent/$id': typeof RentIdRoute
+  '/rent_/$id': typeof RentIdRoute
   '/seller/$slug': typeof SellerSlugRoute
+  '/rent/': typeof RentIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -285,7 +285,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/marketplace'
     | '/notes'
-    | '/rent'
     | '/admin'
     | '/dashboard'
     | '/notification-settings'
@@ -306,6 +305,7 @@ export interface FileRouteTypes {
     | '/product/$id'
     | '/rent/$id'
     | '/seller/$slug'
+    | '/rent/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -314,7 +314,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/marketplace'
     | '/notes'
-    | '/rent'
     | '/admin'
     | '/dashboard'
     | '/notification-settings'
@@ -335,6 +334,7 @@ export interface FileRouteTypes {
     | '/product/$id'
     | '/rent/$id'
     | '/seller/$slug'
+    | '/rent'
   id:
     | '__root__'
     | '/'
@@ -344,7 +344,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/marketplace'
     | '/notes'
-    | '/rent'
     | '/_authenticated/admin'
     | '/_authenticated/dashboard'
     | '/_authenticated/notification-settings'
@@ -363,8 +362,9 @@ export interface FileRouteTypes {
     | '/food/$id'
     | '/notes/$id'
     | '/product/$id'
-    | '/rent/$id'
+    | '/rent_/$id'
     | '/seller/$slug'
+    | '/rent/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -375,20 +375,14 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MarketplaceRoute: typeof MarketplaceRoute
   NotesRoute: typeof NotesRouteWithChildren
-  RentRoute: typeof RentRouteWithChildren
   ProductIdRoute: typeof ProductIdRoute
+  RentIdRoute: typeof RentIdRoute
   SellerSlugRoute: typeof SellerSlugRoute
+  RentIndexRoute: typeof RentIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/rent': {
-      id: '/rent'
-      path: '/rent'
-      fullPath: '/rent'
-      preLoaderRoute: typeof RentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/notes': {
       id: '/notes'
       path: '/notes'
@@ -438,6 +432,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rent/': {
+      id: '/rent/'
+      path: '/rent'
+      fullPath: '/rent/'
+      preLoaderRoute: typeof RentIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/seller/$slug': {
       id: '/seller/$slug'
       path: '/seller/$slug'
@@ -445,12 +446,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SellerSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/rent/$id': {
-      id: '/rent/$id'
-      path: '/$id'
+    '/rent_/$id': {
+      id: '/rent_/$id'
+      path: '/rent/$id'
       fullPath: '/rent/$id'
       preLoaderRoute: typeof RentIdRouteImport
-      parentRoute: typeof RentRoute
+      parentRoute: typeof rootRouteImport
     }
     '/product/$id': {
       id: '/product/$id'
@@ -642,16 +643,6 @@ const NotesRouteChildren: NotesRouteChildren = {
 
 const NotesRouteWithChildren = NotesRoute._addFileChildren(NotesRouteChildren)
 
-interface RentRouteChildren {
-  RentIdRoute: typeof RentIdRoute
-}
-
-const RentRouteChildren: RentRouteChildren = {
-  RentIdRoute: RentIdRoute,
-}
-
-const RentRouteWithChildren = RentRoute._addFileChildren(RentRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
@@ -660,9 +651,10 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MarketplaceRoute: MarketplaceRoute,
   NotesRoute: NotesRouteWithChildren,
-  RentRoute: RentRouteWithChildren,
   ProductIdRoute: ProductIdRoute,
+  RentIdRoute: RentIdRoute,
   SellerSlugRoute: SellerSlugRoute,
+  RentIndexRoute: RentIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

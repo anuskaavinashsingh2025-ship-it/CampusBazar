@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GraduationCap, Loader2 } from "lucide-react";
+import { ArrowLeft, CalendarRange, GraduationCap, Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import {
   useCreateRentalRequest,
   useRentalRequestForListing,
 } from "@/lib/rental-requests";
+import { HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
 import { useTrackListingView } from "@/lib/listing-views";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
 import { ChatSellerButton } from "@/components/listing/chat-seller-button";
@@ -30,6 +31,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -38,7 +46,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export const Route = createFileRoute("/rent/$id")({
+export const Route = createFileRoute("/rent_/$id")({
   head: () => ({
     meta: [{ title: "Rent item — CampusBazar" }],
   }),
@@ -65,6 +73,19 @@ type RentalImageRow = { storage_path: string; sort_index: number };
 const RENTAL_LISTINGS_TABLE = "rental_listings" as unknown as keyof Database["public"]["Tables"];
 const RENTAL_IMAGES_TABLE = "rental_images" as unknown as keyof Database["public"]["Tables"];
 
+const DURATION_PRESETS = [
+  { value: "1", label: "1 day" },
+  { value: "3", label: "3 days" },
+  { value: "7", label: "1 week" },
+  { value: "14", label: "2 weeks" },
+  { value: "30", label: "1 month" },
+  { value: "custom", label: "Custom" },
+] as const;
+
+function formatLocationFromBlock(block: string) {
+  return block === "Other" ? "" : `${block}, VIT Campus`;
+}
+
 function RentDetailsPage() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
@@ -73,12 +94,25 @@ function RentDetailsPage() {
   const { data: existingRequest } = useRentalRequestForListing(id, user?.id);
 
   const [requestOpen, setRequestOpen] = useState(false);
-  const [durationDays, setDurationDays] = useState("7");
+  const [durationPreset, setDurationPreset] = useState("7");
+  const [customDurationDays, setCustomDurationDays] = useState("");
   const [pickupDate, setPickupDate] = useState("");
+  const [pickupBlock, setPickupBlock] = useState(profile?.hostel_block ?? "Other");
   const [pickupLocation, setPickupLocation] = useState(
-    profile?.hostel_block ? `${profile.hostel_block}, VIT Campus` : "VIT Campus",
+    profile?.hostel_block ? formatLocationFromBlock(profile.hostel_block) : "VIT Campus",
   );
   const [requestMessage, setRequestMessage] = useState("");
+
+  useEffect(() => {
+    if (!profile?.hostel_block) return;
+    setPickupBlock(profile.hostel_block);
+    setPickupLocation(formatLocationFromBlock(profile.hostel_block) || "VIT Campus");
+  }, [profile?.hostel_block]);
+
+  const minPickupDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const resolvedDurationDays =
+    durationPreset === "custom" ? Number(customDurationDays) : Number(durationPreset);
 
   const { data: rental, isLoading } = useQuery({
     queryKey: ["rental", id],
@@ -215,11 +249,23 @@ function RentDetailsPage() {
     setRequestOpen(true);
   };
 
+  const estimatedTotal =
+    rental && resolvedDurationDays > 0
+      ? formatInr(Number(rental.rent_price_per_day) * resolvedDurationDays)
+      : null;
+
+  const requestButtonLabel =
+    existingRequest?.status === "pending"
+      ? "Request Pending"
+      : existingRequest?.status === "accepted"
+        ? "Request Accepted"
+        : "Request Rental";
+
   const submitRequest = () => {
     if (!user) return;
-    const days = Number(durationDays);
+    const days = resolvedDurationDays;
     if (!days || days < 1) {
-      toast.error("Enter a valid rental duration.");
+      toast.error("Select a valid rental duration.");
       return;
     }
     if (!pickupDate) {
@@ -320,10 +366,16 @@ function RentDetailsPage() {
                 className="w-full gap-2"
               />
               <Button
+                className="gap-2"
                 onClick={openRequestDialog}
-                disabled={rental.status !== "available" || existingRequest?.status === "pending"}
+                disabled={
+                  rental.status !== "available" ||
+                  existingRequest?.status === "pending" ||
+                  existingRequest?.status === "accepted"
+                }
               >
-                {existingRequest?.status === "pending" ? "Request Pending" : "Request Rental"}
+                <CalendarRange className="h-4 w-4" />
+                {requestButtonLabel}
               </Button>
             </div>
           </div>
@@ -343,31 +395,77 @@ function RentDetailsPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="duration">Rental Duration (days)</Label>
-              <Input
-                id="duration"
-                type="number"
-                min={1}
-                value={durationDays}
-                onChange={(e) => setDurationDays(e.target.value)}
-              />
+              <Label>Rental Duration</Label>
+              <Select value={durationPreset} onValueChange={setDurationPreset}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_PRESETS.map((preset) => (
+                    <SelectItem key={preset.value} value={preset.value}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {durationPreset === "custom" && (
+                <Input
+                  id="duration"
+                  type="number"
+                  min={1}
+                  placeholder="Number of days"
+                  value={customDurationDays}
+                  onChange={(e) => setCustomDurationDays(e.target.value)}
+                />
+              )}
+              {estimatedTotal && (
+                <p className="text-sm text-muted-foreground">
+                  Estimated total: <span className="font-semibold text-primary">{estimatedTotal}</span>{" "}
+                  ({priceLabel})
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="pickupDate">Pickup Date</Label>
               <Input
                 id="pickupDate"
                 type="date"
+                min={minPickupDate}
                 value={pickupDate}
                 onChange={(e) => setPickupDate(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pickupLocation">Pickup Location</Label>
-              <Input
-                id="pickupLocation"
-                value={pickupLocation}
-                onChange={(e) => setPickupLocation(e.target.value)}
-              />
+              <Label>Pickup Location</Label>
+              <Select
+                value={pickupBlock}
+                onValueChange={(value) => {
+                  setPickupBlock(value);
+                  const formatted = formatLocationFromBlock(value);
+                  if (formatted) setPickupLocation(formatted);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select pickup area" />
+                </SelectTrigger>
+                <SelectContent>
+                  {HOSTEL_BLOCKS.map((block) => (
+                    <SelectItem key={block} value={block}>
+                      {block}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="pickupLocation"
+                  className="pl-9"
+                  value={pickupLocation}
+                  onChange={(e) => setPickupLocation(e.target.value)}
+                  placeholder="VIT Campus, near SJT..."
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="message">Message (optional)</Label>

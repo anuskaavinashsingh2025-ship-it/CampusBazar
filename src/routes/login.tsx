@@ -3,9 +3,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { GraduationCap, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { ensureProfile } from "@/lib/supabase-account";
+import { bootstrapUserAccount } from "@/lib/supabase-account";
 import {
   getSavedLogins,
   removeSavedLogin,
@@ -80,7 +81,7 @@ function LoginPage() {
       data: { user: authUser },
     } = await supabase.auth.getUser();
     if (authUser) {
-      await ensureProfile(authUser);
+      await bootstrapUserAccount(authUser);
       const { data: prof } = await supabase
         .from("profiles")
         .select("is_profile_complete")
@@ -128,14 +129,16 @@ function LoginPage() {
   const handleGoogle = async (savedEmail?: string) => {
     setGoogleLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/`,
-          queryParams: savedEmail ? { login_hint: savedEmail } : undefined,
-        },
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: `${window.location.origin}/`,
+        extraParams: savedEmail ? { login_hint: savedEmail } : undefined,
       });
-      if (error) throw error;
+      if (result.error) throw result.error;
+      if (!result.redirected) {
+        toast.success("Welcome!");
+        await navigateAfterAuth();
+        setGoogleLoading(false);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
       setGoogleLoading(false);

@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "../lib/auth";
 import { AppLayout } from "../components/app-layout";
+import { AuthPostLoginRedirect } from "../components/auth-post-login-redirect";
 import { Toaster } from "../components/ui/sonner";
 
 const BARE_LAYOUT_PATHS = new Set(["/login", "/complete-profile"]);
@@ -127,6 +128,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <AuthPostLoginRedirect />
         {useAppLayout ? (
           <AppLayout>
             <Outlet />

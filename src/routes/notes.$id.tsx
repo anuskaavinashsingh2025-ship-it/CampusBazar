@@ -26,6 +26,7 @@ import { SimilarListings } from "@/components/listing/similar-listings";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -80,6 +81,7 @@ function NotesDetailsPage() {
 
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
+  const [rentalDurationDays, setRentalDurationDays] = useState("7");
 
   const { data: listing, isLoading } = useQuery({
     queryKey: ["notes_listing", id],
@@ -176,13 +178,25 @@ function NotesDetailsPage() {
 
   const submitRequest = () => {
     if (!user || !listing) return;
+
+    let message = requestMessage.trim();
+    if (listing.listing_type === "rent") {
+      const days = Number(rentalDurationDays);
+      if (!days || days < 1) {
+        toast.error("Enter a valid rental duration.");
+        return;
+      }
+      const durationLine = `Rental Duration: ${days} day${days === 1 ? "" : "s"}`;
+      message = message ? `${durationLine}\n${message}` : durationLine;
+    }
+
     createPurchase.mutate(
       {
         notesListingId: listing.id,
         buyerId: user.id,
         sellerId: listing.seller_id,
         listingTitle: listing.title,
-        message: requestMessage,
+        message,
       },
       { onSuccess: () => setRequestOpen(false) },
     );
@@ -313,14 +327,28 @@ function NotesDetailsPage() {
               Send a request to {seller?.display_name ?? "the seller"} for these notes.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="notesMsg">Message (optional)</Label>
-            <Textarea
-              id="notesMsg"
-              value={requestMessage}
-              onChange={(e) => setRequestMessage(e.target.value)}
-              placeholder="When do you need these notes?"
-            />
+          <div className="space-y-4">
+            {listing.listing_type === "rent" && (
+              <div className="space-y-2">
+                <Label htmlFor="notesDuration">Rental Duration (days)</Label>
+                <Input
+                  id="notesDuration"
+                  type="number"
+                  min={1}
+                  value={rentalDurationDays}
+                  onChange={(e) => setRentalDurationDays(e.target.value)}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="notesMsg">Message (optional)</Label>
+              <Textarea
+                id="notesMsg"
+                value={requestMessage}
+                onChange={(e) => setRequestMessage(e.target.value)}
+                placeholder="When do you need these notes?"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRequestOpen(false)}>

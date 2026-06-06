@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { bootstrapUserAccount } from "@/lib/supabase-account";
 import { HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,8 @@ function CompleteProfilePage() {
     if (!user) return;
     setSubmitting(true);
     try {
+      await bootstrapUserAccount(user);
+
       const payload = {
         full_name: fullName.trim(),
         hostel_block: hostelBlock,

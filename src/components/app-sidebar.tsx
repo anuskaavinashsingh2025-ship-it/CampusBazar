@@ -14,6 +14,7 @@ import {
   Store,
   Tag,
   User,
+  UtensilsCrossed,
 } from "lucide-react";
 
 import {
@@ -36,6 +37,7 @@ import { useUnreadNotificationCount } from "@/lib/notifications";
 const mainItems = [
   { title: "Home", url: "/", icon: Home, external: true },
   { title: "Rent", url: "/rent", icon: Bike, external: true },
+  { title: "Food Hub", url: "/food", icon: UtensilsCrossed, external: true },
   { title: "Sell", url: "/upload-product", icon: Tag },
   { title: "Notes Hub", url: "/notes", icon: FileText, external: true },
   { title: "Chats", url: "/chats", icon: MessageSquare, disabled: true },

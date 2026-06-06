@@ -25,6 +25,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { HubNavStrip } from "@/components/hub-nav-strip";
 
 export const Route = createFileRoute("/food")({
   head: () => ({
@@ -276,6 +277,8 @@ function FoodHubPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-4">
+        <HubNavStrip active="food" className="mb-4" />
+
         <div className="relative mb-4">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
