@@ -517,7 +517,7 @@ function RentFeedPage() {
                             </div>
                           )}
                           <div onClick={(e) => e.stopPropagation()} role="presentation">
-                            <WishlistButton itemType="rental" itemId={r.id} />
+                            <WishlistButton listingId={r.id} />
                           </div>
                           <span
                             className={cn(

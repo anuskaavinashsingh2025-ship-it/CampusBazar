@@ -15,7 +15,9 @@ import {
   Tag,
   User,
   UtensilsCrossed,
+  MessageCircle,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   Sidebar,
@@ -34,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { useUnreadChatCount } from "@/lib/chat";
 import { useUnreadNotificationCount } from "@/lib/notifications";
+import { supabase } from "@/integrations/supabase/client";
 
 const mainItems = [
   { title: "Home", url: "/", icon: Home, external: true },
@@ -43,7 +46,7 @@ const mainItems = [
   { title: "Notes Hub", url: "/notes", icon: FileText, external: true },
   { title: "Chats", url: "/chats", icon: MessageSquare, showBadge: true },
   { title: "Requests", url: "/requests", icon: Shield },
-  { title: "Seller Profile", url: "/seller-profile", icon: Store },
+  { title: "Seller Profile", url: "/seller-profile", icon: Store, isSellerProfile: true },
 ] as const;
 
 const secondaryItems = [
@@ -65,6 +68,21 @@ export function AppSidebar() {
   const { data: unreadCount = 0 } = useUnreadNotificationCount(user?.id);
   const { data: unreadChats = 0 } = useUnreadChatCount(user?.id);
 
+  const { data: sellerProfile } = useQuery({
+    queryKey: ["seller_profile_self", user?.id ?? null],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data, error } = await supabase
+        .from("seller_profiles")
+        .select("slug")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: Boolean(user?.id),
+  });
+
   const handleSignOut = async () => {
     await signOut();
     navigate({ to: "/login" });
@@ -75,6 +93,14 @@ export function AppSidebar() {
       await handleSignOut();
     } else {
       navigate({ to: "/login" });
+    }
+  };
+
+  const handleSellerProfileClick = () => {
+    if (sellerProfile?.slug) {
+      navigate({ to: "/seller/$slug", params: { slug: sellerProfile.slug } });
+    } else {
+      navigate({ to: "/seller-profile" });
     }
   };
 
@@ -96,27 +122,37 @@ export function AppSidebar() {
             <SidebarMenu>
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isNavActive(pathname, item.url, "external" in item ? item.external : undefined)}
-                  >
-                    <Link
-                      to={item.url}
-                      className="flex items-center gap-2"
-                      {...("external" in item && item.external ? { target: "_self" } : {})}
+                  {"isSellerProfile" in item && item.isSellerProfile ? (
+                    <SidebarMenuButton
+                      isActive={!!(pathname === "/seller-profile" || (sellerProfile?.slug && pathname === `/seller/${sellerProfile.slug}`))}
+                      onClick={handleSellerProfileClick}
                     >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
-                      {"showBadge" in item && item.showBadge && unreadChats > 0 && (
-                        <Badge
-                          variant="destructive"
-                          className="ml-auto h-5 min-w-5 rounded-full px-1.5 text-[10px]"
-                        >
-                          {unreadChats > 99 ? "99+" : unreadChats}
-                        </Badge>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
+                    </SidebarMenuButton>
+                  ) : (
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isNavActive(pathname, item.url, "external" in item ? item.external : undefined)}
+                    >
+                      <Link
+                        to={item.url}
+                        className="flex items-center gap-2"
+                        {...("external" in item && item.external ? { target: "_self" } : {})}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                        {"showBadge" in item && item.showBadge && unreadChats > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="ml-auto h-5 min-w-5 rounded-full px-1.5 text-[10px]"
+                          >
+                            {unreadChats > 99 ? "99+" : unreadChats}
+                          </Badge>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
@@ -172,14 +208,19 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <a
-                href="mailto:support@campusbazar.app"
-                className="flex items-center gap-2"
-              >
-                <HelpCircle className="h-4 w-4" />
-                <span>Help &amp; Support</span>
-              </a>
+            <SidebarMenuButton asChild isActive={pathname === "/feedback"}>
+              <Link to="/feedback" className="flex items-center gap-2">
+                <MessageCircle className="h-4 w-4" />
+                <span>Give Feedback</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === "/terms"}>
+              <Link to="/terms" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                <span>Terms &amp; Conditions</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

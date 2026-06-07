@@ -140,31 +140,43 @@ export function useUpdateFoodOrder() {
       notificationTitle?: string;
       notificationDescription?: string;
     }): Promise<ChatMutationResult> => {
+      console.log("[useUpdateFoodOrder] Called with:", { orderId: input.orderId, status: input.status });
       let conversationId: string | undefined;
       const { error } = await supabase
         .from(ORDERS_TABLE)
         .update({ status: input.status })
         .eq("id", input.orderId);
-      if (error) throw error;
+      if (error) {
+        console.error("[useUpdateFoodOrder] Status update error:", error);
+        throw error;
+      }
+      console.log("[useUpdateFoodOrder] Status updated to:", input.status);
 
       if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
-        await createNotification({
-          userId: input.notifyUserId,
-          title: input.notificationTitle,
-          description: input.notificationDescription,
-          priority: input.status === "rejected" ? "important" : "informational",
-          module: "food",
-          actionUrl: "/requests",
-          metadata: { orderId: input.orderId },
-        });
+        try {
+          await createNotification({
+            userId: input.notifyUserId,
+            title: input.notificationTitle,
+            description: input.notificationDescription,
+            priority: input.status === "rejected" ? "important" : "informational",
+            module: "food",
+            actionUrl: "/requests",
+            metadata: { orderId: input.orderId },
+          });
+        } catch (notifErr) {
+          console.error("[useUpdateFoodOrder] Notification creation failed (non-blocking):", notifErr);
+        }
       }
 
       if (input.status === "accepted" || input.status === "completed") {
+        console.log("[useUpdateFoodOrder] Status is accepted/completed, fetching order row");
         const { data: orderRow } = await supabase
           .from(ORDERS_TABLE)
           .select("buyer_id,seller_id,food_listing_id")
           .eq("id", input.orderId)
           .maybeSingle();
+
+        console.log("[useUpdateFoodOrder] Order row:", orderRow);
 
         if (orderRow) {
           const row = orderRow as {
@@ -180,7 +192,10 @@ export function useUpdateFoodOrder() {
           const title =
             (listing as { product_name: string } | null)?.product_name ?? "Food listing";
 
+          console.log("[useUpdateFoodOrder] Listing title:", title);
+
           if (input.status === "accepted") {
+            console.log("[useUpdateFoodOrder] Calling ensureConversationOnAccept");
             conversationId = await ensureConversationOnAccept({
               buyerId: row.buyer_id,
               sellerId: row.seller_id,
@@ -190,6 +205,7 @@ export function useUpdateFoodOrder() {
               listingTitle: title,
               notifyBuyer: true,
             });
+            console.log("[useUpdateFoodOrder] Conversation ID returned:", conversationId);
           } else {
             await completeConversationForRequest({
               buyerId: row.buyer_id,
@@ -197,8 +213,11 @@ export function useUpdateFoodOrder() {
               contextId: row.food_listing_id,
             });
           }
+        } else {
+          console.error("[useUpdateFoodOrder] Order row not found for ID:", input.orderId);
         }
       }
+      console.log("[useUpdateFoodOrder] Returning conversationId:", conversationId);
       return { conversationId };
     },
     onSuccess: () => {

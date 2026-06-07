@@ -1,16 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Store } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { ensureSellerProfile } from "@/lib/supabase-account";
+import { HOSTEL_TYPES, LADIES_HOSTEL_BLOCKS, MENS_HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_authenticated/seller-profile")({
@@ -21,17 +20,16 @@ export const Route = createFileRoute("/_authenticated/seller-profile")({
 });
 
 function SellerProfileEditPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
-  const [displayName, setDisplayName] = useState("");
-  const [bio, setBio] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [hostelType, setHostelType] = useState("");
+  const [hostelBlock, setHostelBlock] = useState("");
+  const [otherHostelBlock, setOtherHostelBlock] = useState("");
+  const [roomNumber, setRoomNumber] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  const defaultDisplayName = useMemo(() => {
-    if (profile?.full_name?.trim()) return profile.full_name.trim();
-    return user?.email ?? "seller";
-  }, [profile?.full_name, user?.email]);
 
   const { data: seller, isLoading } = useQuery({
     queryKey: ["seller_profile_self", user?.id ?? null],
@@ -49,44 +47,45 @@ function SellerProfileEditPage() {
   });
 
   useEffect(() => {
-    if (seller) {
-      setDisplayName(seller.display_name);
-      setBio(seller.bio ?? "");
-      setAvatarUrl(seller.avatar_url ?? "");
-    } else {
-      setDisplayName(defaultDisplayName);
-      setBio("");
-      setAvatarUrl(profile?.avatar_url ?? "");
+    if (profile) {
+      setFullName(profile.full_name ?? "");
+      setHostelType(profile.hostel_type ?? "");
+      setHostelBlock(profile.hostel_block ?? "");
+      setOtherHostelBlock(profile.hostel_block === "Other" ? profile.hostel_block ?? "" : "");
+      setRoomNumber(profile.room_number ?? "");
+      setPhoneNumber(profile.phone_number ?? "");
+      setAvatarUrl(profile.avatar_url ?? "");
     }
-  }, [seller, defaultDisplayName, profile?.avatar_url]);
+  }, [profile]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setSubmitting(true);
     try {
-      if (!seller) {
-        await ensureSellerProfile({
-          user_id: user.id,
-          display_name: displayName.trim() || defaultDisplayName,
-          avatar_url: avatarUrl.trim() || profile?.avatar_url || null,
-        });
-      }
-
-      const { error } = await supabase
-        .from("seller_profiles")
-        .update({
-          display_name: displayName.trim() || defaultDisplayName,
-          bio: bio.trim() || null,
-          avatar_url: avatarUrl.trim() || null,
-        })
-        .eq("user_id", user.id);
-
+      const finalHostelBlock = hostelBlock === "Other" ? otherHostelBlock : hostelBlock;
+      const payload = {
+        full_name: fullName.trim(),
+        hostel_type: hostelType,
+        hostel_block: finalHostelBlock,
+        room_number: roomNumber.trim() || null,
+        phone_number: phoneNumber.trim() || null,
+        avatar_url: avatarUrl.trim() || null,
+      };
+      const { error } = profile
+        ? await supabase.from("profiles").update(payload).eq("id", user.id)
+        : await supabase.from("profiles").insert({
+            id: user.id,
+            email: user.email ?? "",
+            ...payload,
+            is_profile_complete: true,
+          });
       if (error) throw error;
+      await refreshProfile();
       await queryClient.invalidateQueries({ queryKey: ["seller_profile_self", user.id] });
-      toast.success("Seller profile saved");
+      toast.success("Profile saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save seller profile");
+      toast.error(err instanceof Error ? err.message : "Could not save profile");
     } finally {
       setSubmitting(false);
     }
@@ -106,7 +105,7 @@ function SellerProfileEditPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Seller profile</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Public storefront details shown to buyers on your listings.
+            Update your profile information shown to buyers on CampusBazar.
           </p>
         </div>
         {seller?.slug && (
@@ -121,42 +120,102 @@ function SellerProfileEditPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Storefront details</CardTitle>
+          <CardTitle>Profile details</CardTitle>
           <CardDescription>
-            {seller
-              ? "Update how other students see you on CampusBazar."
-              : "Create your seller profile to start listing items."}
+            Update your personal information. Changes will appear on your storefront and profile.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {seller?.slug && (
-              <div className="space-y-2">
-                <Label>Store URL</Label>
-                <Input value={`/seller/${seller.slug}`} disabled />
-              </div>
-            )}
             <div className="space-y-2">
-              <Label htmlFor="displayName">Display name</Label>
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" value={profile?.email ?? user.email ?? ""} disabled />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full name</Label>
               <Input
-                id="displayName"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
-              <Textarea
-                id="bio"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Tell buyers about what you sell or rent on campus."
-                rows={4}
+              <Label htmlFor="hostelType">Hostel Type</Label>
+              <select
+                id="hostelType"
+                value={hostelType}
+                onChange={(e) => {
+                  setHostelType(e.target.value);
+                  setHostelBlock("");
+                }}
+                required
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="" disabled>
+                  Select hostel type
+                </option>
+                {HOSTEL_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {hostelType && (
+              <div className="space-y-2">
+                <Label htmlFor="hostelBlock">Hostel Block</Label>
+                <select
+                  id="hostelBlock"
+                  value={hostelBlock}
+                  onChange={(e) => setHostelBlock(e.target.value)}
+                  required
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="" disabled>
+                    Select your block
+                  </option>
+                  {(hostelType === "Ladies Hostel" ? LADIES_HOSTEL_BLOCKS : MENS_HOSTEL_BLOCKS).map((block) => (
+                    <option key={block} value={block}>
+                      {block}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {hostelBlock === "Other" && (
+              <div className="space-y-2">
+                <Label htmlFor="otherHostelBlock">Other Hostel Block</Label>
+                <Input
+                  id="otherHostelBlock"
+                  value={otherHostelBlock}
+                  onChange={(e) => setOtherHostelBlock(e.target.value)}
+                  required
+                  placeholder="Enter your hostel block"
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="roomNumber">Room Number (Optional)</Label>
+              <Input
+                id="roomNumber"
+                value={roomNumber}
+                onChange={(e) => setRoomNumber(e.target.value)}
+                placeholder="e.g., 101"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="avatarUrl">Avatar URL (optional)</Label>
+              <Label htmlFor="phoneNumber">Phone Number (Optional)</Label>
+              <Input
+                id="phoneNumber"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="e.g., 9876543210"
+                pattern="[0-9]{10}"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="avatarUrl">Avatar URL (Optional)</Label>
               <Input
                 id="avatarUrl"
                 value={avatarUrl}
@@ -164,9 +223,9 @@ function SellerProfileEditPage() {
                 placeholder="https://..."
               />
             </div>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" className="w-full" disabled={submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save seller profile
+              Save changes
             </Button>
           </form>
         </CardContent>

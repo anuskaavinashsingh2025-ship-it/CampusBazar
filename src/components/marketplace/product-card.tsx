@@ -34,6 +34,11 @@ export function ProductCard({ product }: { product: ProductCardModel }) {
       ? product.custom_category
       : product.category;
 
+  console.log("[ProductCard]", {
+    listingId: product?.id,
+    title: product?.title
+  });
+
   return (
     <Card className="overflow-hidden border-border/60 shadow-sm">
       <CardContent className="p-0">
@@ -53,7 +58,7 @@ export function ProductCard({ product }: { product: ProductCardModel }) {
             )}
           </Link>
 
-          <WishlistButton itemType="product" itemId={product.id} />
+          <WishlistButton listingId={product.id} />
 
           {product.urgent_sale && (
             <div className="absolute left-3 top-3">

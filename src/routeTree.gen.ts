@@ -9,10 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FoodRouteImport } from './routes/food'
+import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as CompleteProfileRouteImport } from './routes/complete-profile'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
@@ -40,6 +42,11 @@ import { Route as AuthenticatedChatsRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedChatsIdRouteImport } from './routes/_authenticated/chats_.$id'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NotesRoute = NotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -58,6 +65,11 @@ const LoginRoute = LoginRouteImport.update({
 const FoodRoute = FoodRouteImport.update({
   id: '/food',
   path: '/food',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedbackRoute = FeedbackRouteImport.update({
+  id: '/feedback',
+  path: '/feedback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompleteProfileRoute = CompleteProfileRouteImport.update({
@@ -202,10 +214,12 @@ const AuthenticatedChatsIdRoute = AuthenticatedChatsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/complete-profile': typeof CompleteProfileRoute
+  '/feedback': typeof FeedbackRoute
   '/food': typeof FoodRoute
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/notes': typeof NotesRoute
+  '/terms': typeof TermsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/chats': typeof AuthenticatedChatsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -233,10 +247,12 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/complete-profile': typeof CompleteProfileRoute
+  '/feedback': typeof FeedbackRoute
   '/food': typeof FoodRoute
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/notes': typeof NotesRoute
+  '/terms': typeof TermsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/chats': typeof AuthenticatedChatsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -266,10 +282,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/complete-profile': typeof CompleteProfileRoute
+  '/feedback': typeof FeedbackRoute
   '/food': typeof FoodRoute
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/notes': typeof NotesRoute
+  '/terms': typeof TermsRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/chats': typeof AuthenticatedChatsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -299,10 +317,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/complete-profile'
+    | '/feedback'
     | '/food'
     | '/login'
     | '/marketplace'
     | '/notes'
+    | '/terms'
     | '/admin'
     | '/chats'
     | '/dashboard'
@@ -330,10 +350,12 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/complete-profile'
+    | '/feedback'
     | '/food'
     | '/login'
     | '/marketplace'
     | '/notes'
+    | '/terms'
     | '/admin'
     | '/chats'
     | '/dashboard'
@@ -362,10 +384,12 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/complete-profile'
+    | '/feedback'
     | '/food'
     | '/login'
     | '/marketplace'
     | '/notes'
+    | '/terms'
     | '/_authenticated/admin'
     | '/_authenticated/chats'
     | '/_authenticated/dashboard'
@@ -395,10 +419,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   CompleteProfileRoute: typeof CompleteProfileRoute
+  FeedbackRoute: typeof FeedbackRoute
   FoodRoute: typeof FoodRoute
   LoginRoute: typeof LoginRoute
   MarketplaceRoute: typeof MarketplaceRoute
   NotesRoute: typeof NotesRoute
+  TermsRoute: typeof TermsRoute
   FoodIdRoute: typeof FoodIdRoute
   NotesIdRoute: typeof NotesIdRoute
   ProductIdRoute: typeof ProductIdRoute
@@ -409,6 +435,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/notes': {
       id: '/notes'
       path: '/notes'
@@ -435,6 +468,13 @@ declare module '@tanstack/react-router' {
       path: '/food'
       fullPath: '/food'
       preLoaderRoute: typeof FoodRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feedback': {
+      id: '/feedback'
+      path: '/feedback'
+      fullPath: '/feedback'
+      preLoaderRoute: typeof FeedbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/complete-profile': {
@@ -671,10 +711,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   CompleteProfileRoute: CompleteProfileRoute,
+  FeedbackRoute: FeedbackRoute,
   FoodRoute: FoodRoute,
   LoginRoute: LoginRoute,
   MarketplaceRoute: MarketplaceRoute,
   NotesRoute: NotesRoute,
+  TermsRoute: TermsRoute,
   FoodIdRoute: FoodIdRoute,
   NotesIdRoute: NotesIdRoute,
   ProductIdRoute: ProductIdRoute,

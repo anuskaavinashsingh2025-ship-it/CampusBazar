@@ -289,6 +289,8 @@ function RentDetailsPage() {
           pickupLocation: pickupLocation.trim(),
           message: requestMessage,
         },
+        buyerName: user.user_metadata?.full_name || user.email?.split('@')[0] || "Buyer",
+        buyerHostel: user.user_metadata?.hostel_block || null,
       },
       { onSuccess: () => setRequestOpen(false) },
     );
@@ -317,7 +319,7 @@ function RentDetailsPage() {
             alt={rental.title}
             overlay={
               <>
-                <WishlistButton itemType="rental" itemId={rental.id} className="right-4 top-4" />
+                <WishlistButton listingId={rental.id} className="right-4 top-4" />
                 <span
                   className={`absolute bottom-4 left-4 rounded-md px-2 py-1 text-xs font-semibold ${statusClass}`}
                 >

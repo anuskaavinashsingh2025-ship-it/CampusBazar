@@ -38,8 +38,8 @@ export type RentalRequestDetails = RentalRequestRow & {
     status: string;
     coverUrl: string | null;
   };
-  buyer?: { display_name: string; avatar_url: string | null };
-  seller?: { display_name: string; avatar_url: string | null };
+  buyer?: { display_name: string; avatar_url: string | null; hostel_block: string | null };
+  seller?: { display_name: string; avatar_url: string | null; hostel_block: string | null };
 };
 
 const REQUESTS_TABLE = "rental_requests" as unknown as keyof Database["public"]["Tables"];
@@ -94,7 +94,7 @@ async function enrichRequests(rows: RentalRequestRow[]): Promise<RentalRequestDe
       .in("rental_id", rentalIds),
     supabase
       .from("profiles")
-      .select("id,full_name,avatar_url")
+      .select("id,full_name,avatar_url,hostel_block")
       .in("id", userIds),
   ]);
 
@@ -110,9 +110,9 @@ async function enrichRequests(rows: RentalRequestRow[]): Promise<RentalRequestDe
   }
 
   const profileMap = new Map(
-    (profiles ?? []).map((p: { id: string; full_name: string | null; avatar_url: string | null }) => [
+    (profiles ?? []).map((p: { id: string; full_name: string | null; avatar_url: string | null; hostel_block: string | null }) => [
       p.id,
-      { display_name: p.full_name ?? "Student", avatar_url: p.avatar_url },
+      { display_name: p.full_name ?? "Student", avatar_url: p.avatar_url, hostel_block: p.hostel_block },
     ]),
   );
 
@@ -198,6 +198,8 @@ export function useCreateRentalRequest() {
       sellerId: string;
       rentalTitle: string;
       form: RentalRequestFormData;
+      buyerName?: string;
+      buyerHostel?: string;
     }) => {
       const message = formatRentalRequestMessage(input.form);
       const { data, error } = await supabase
@@ -213,10 +215,11 @@ export function useCreateRentalRequest() {
         .single();
       if (error) throw error;
 
+      const buyerDetails = input.buyerName ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}` : "";
       await createNotification({
         userId: input.sellerId,
         title: "Rental Request Received",
-        description: `You received a rental request for "${input.rentalTitle}".`,
+        description: `You received a rental request for "${input.rentalTitle}"${buyerDetails}.`,
         priority: "important",
         module: "rentals",
         actionUrl: "/requests",
@@ -252,12 +255,17 @@ export function useUpdateRentalRequest() {
       notificationDescription?: string;
       listingStatus?: "available" | "rented_out" | "unavailable";
     }): Promise<ChatMutationResult> => {
+      console.log("[useUpdateRentalRequest] Called with:", { requestId: input.requestId, status: input.status });
       let conversationId: string | undefined;
       const { error } = await supabase
         .from(REQUESTS_TABLE)
         .update({ status: input.status })
         .eq("id", input.requestId);
-      if (error) throw error;
+      if (error) {
+        console.error("[useUpdateRentalRequest] Status update error:", error);
+        throw error;
+      }
+      console.log("[useUpdateRentalRequest] Status updated to:", input.status);
 
       if (input.listingStatus && input.rentalId) {
         const { error: listingErr } = await supabase
@@ -268,23 +276,30 @@ export function useUpdateRentalRequest() {
       }
 
       if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
-        await createNotification({
-          userId: input.notifyUserId,
-          title: input.notificationTitle,
-          description: input.notificationDescription,
-          priority: input.status === "rejected" ? "important" : "informational",
-          module: "rentals",
-          actionUrl: "/requests",
-          metadata: { requestId: input.requestId, rentalId: input.rentalId },
-        });
+        try {
+          await createNotification({
+            userId: input.notifyUserId,
+            title: input.notificationTitle,
+            description: input.notificationDescription,
+            priority: input.status === "rejected" ? "important" : "informational",
+            module: "rentals",
+            actionUrl: "/requests",
+            metadata: { requestId: input.requestId, rentalId: input.rentalId },
+          });
+        } catch (notifErr) {
+          console.error("[useUpdateRentalRequest] Notification creation failed (non-blocking):", notifErr);
+        }
       }
 
       if (input.status === "accepted" || input.status === "completed") {
+        console.log("[useUpdateRentalRequest] Status is accepted/completed, fetching request row");
         const { data: reqRow } = await supabase
           .from(REQUESTS_TABLE)
           .select("buyer_id,seller_id,rental_id")
           .eq("id", input.requestId)
           .maybeSingle();
+
+        console.log("[useUpdateRentalRequest] Request row:", reqRow);
 
         if (reqRow) {
           const row = reqRow as { buyer_id: string; seller_id: string; rental_id: string };
@@ -295,7 +310,10 @@ export function useUpdateRentalRequest() {
             .maybeSingle();
           const title = (rental as { title: string } | null)?.title ?? input.rentalTitle ?? "Rental listing";
 
+          console.log("[useUpdateRentalRequest] Rental title:", title);
+
           if (input.status === "accepted") {
+            console.log("[useUpdateRentalRequest] Calling ensureConversationOnAccept");
             conversationId = await ensureConversationOnAccept({
               buyerId: row.buyer_id,
               sellerId: row.seller_id,
@@ -305,6 +323,7 @@ export function useUpdateRentalRequest() {
               listingTitle: title,
               notifyBuyer: true,
             });
+            console.log("[useUpdateRentalRequest] Conversation ID returned:", conversationId);
           } else {
             await completeConversationForRequest({
               buyerId: row.buyer_id,
@@ -312,8 +331,11 @@ export function useUpdateRentalRequest() {
               contextId: row.rental_id,
             });
           }
+        } else {
+          console.error("[useUpdateRentalRequest] Request row not found for ID:", input.requestId);
         }
       }
+      console.log("[useUpdateRentalRequest] Returning conversationId:", conversationId);
       return { conversationId };
     },
     onSuccess: () => {

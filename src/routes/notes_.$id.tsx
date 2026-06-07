@@ -197,6 +197,8 @@ function NotesDetailsPage() {
         sellerId: listing.seller_id,
         listingTitle: listing.title,
         message,
+        buyerName: user.user_metadata?.full_name || user.email?.split('@')[0] || "Buyer",
+        buyerHostel: user.user_metadata?.hostel_block || null,
       },
       { onSuccess: () => setRequestOpen(false) },
     );
@@ -251,7 +253,7 @@ function NotesDetailsPage() {
           <ListingGallery
             images={previewImages}
             alt={listing.title}
-            overlay={<WishlistButton itemType="notes" itemId={listing.id} className="right-4 top-4" />}
+            overlay={<WishlistButton listingId={listing.id} className="right-4 top-4" />}
           />
 
           <div className="space-y-4">

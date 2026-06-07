@@ -3,28 +3,28 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { useAuth } from "@/lib/auth";
-import { useIsWishlisted, useWishlistToggle, type WishlistItemType } from "@/lib/wishlist";
+import { useIsWishlisted, useWishlistToggle } from "@/lib/wishlist";
 import { cn } from "@/lib/utils";
 
 type WishlistButtonProps = {
-  itemType: WishlistItemType;
-  itemId: string;
+  listingId: string;
   className?: string;
   iconClassName?: string;
   variant?: "overlay" | "inline";
 };
 
 export function WishlistButton({
-  itemType,
-  itemId,
+  listingId,
   className,
   iconClassName,
   variant = "overlay",
 }: WishlistButtonProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isWishlisted = useIsWishlisted(user?.id, itemType, itemId);
+  const isWishlisted = useIsWishlisted(user?.id, listingId);
   const toggle = useWishlistToggle(user?.id);
+
+  console.log("[WishlistButton Props]", { listingId });
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -36,7 +36,7 @@ export function WishlistButton({
       return;
     }
 
-    toggle.mutate({ itemType, itemId, isWishlisted });
+    toggle.mutate({ listingId, isWishlisted });
   };
 
   return (

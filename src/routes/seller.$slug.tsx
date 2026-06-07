@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -43,7 +43,8 @@ function formatInr(amount: number) {
 function SellerPage() {
   const { slug } = Route.useParams();
   const { user } = useAuth();
-  const [tab, setTab] = useState<"products" | "rentals" | "reviews">("products");
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<"products" | "rentals" | "reviews" | "completed">("products");
 
   const { data: seller, isLoading } = useQuery({
     queryKey: ["seller", slug],
@@ -56,6 +57,21 @@ function SellerPage() {
       if (error) throw error;
       return data;
     },
+  });
+
+  const { data: userProfile } = useQuery({
+    queryKey: ["user_profile", seller?.user_id],
+    queryFn: async () => {
+      if (!seller) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", seller.user_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: Boolean(seller?.user_id),
   });
 
   const { data: products = [], isLoading: loadingProducts } = useQuery({
@@ -145,7 +161,7 @@ function SellerPage() {
       if (!seller) return [];
       const { data } = await supabase
         .from("product_listings" as unknown as keyof Database["public"]["Tables"])
-        .select("id,title,price,category,status")
+        .select("id,title,price,category,status,updated_at")
         .eq("seller_id", seller.user_id)
         .eq("status", "sold")
         .order("updated_at", { ascending: false })
@@ -155,9 +171,181 @@ function SellerPage() {
     enabled: Boolean(seller?.user_id),
   });
 
+  const { data: completedRentals = [] } = useQuery({
+    queryKey: ["seller_completed_rentals", seller?.user_id],
+    queryFn: async () => {
+      if (!seller) return [];
+      const { data } = await supabase
+        .from("rental_listings" as unknown as keyof Database["public"]["Tables"])
+        .select("id,title,rent_price_per_day,category,updated_at")
+        .eq("seller_id", seller.user_id)
+        .eq("status", "rented_out")
+        .order("updated_at", { ascending: false })
+        .limit(12);
+      return data ?? [];
+    },
+    enabled: Boolean(seller?.user_id),
+  });
+
+  const { data: completedNotes = [] } = useQuery({
+    queryKey: ["seller_completed_notes", seller?.user_id],
+    queryFn: async () => {
+      if (!seller) return [];
+      const { data } = await supabase
+        .from("notes_listings" as unknown as keyof Database["public"]["Tables"])
+        .select("id,title,price,category,updated_at")
+        .eq("seller_id", seller.user_id)
+        .eq("status", "sold")
+        .order("updated_at", { ascending: false })
+        .limit(12);
+      return data ?? [];
+    },
+    enabled: Boolean(seller?.user_id),
+  });
+
+  const { data: completedFood = [] } = useQuery({
+    queryKey: ["seller_completed_food", seller?.user_id],
+    queryFn: async () => {
+      if (!seller) return [];
+      const { data } = await supabase
+        .from("food_listings" as unknown as keyof Database["public"]["Tables"])
+        .select("id,title,price,category,updated_at")
+        .eq("seller_id", seller.user_id)
+        .eq("status", "sold")
+        .order("updated_at", { ascending: false })
+        .limit(12);
+      return data ?? [];
+    },
+    enabled: Boolean(seller?.user_id),
+  });
+
+  const { data: sellerMetrics } = useQuery({
+    queryKey: ["seller_metrics", seller?.user_id],
+    queryFn: async () => {
+      if (!seller) return null;
+      
+      const [productSales, notesSales, foodSales, rentalCompletions, reviews] = await Promise.all([
+        supabase
+          .from("product_listings" as unknown as keyof Database["public"]["Tables"])
+          .select("id")
+          .eq("seller_id", seller.user_id)
+          .eq("status", "sold"),
+        supabase
+          .from("notes_listings" as unknown as keyof Database["public"]["Tables"])
+          .select("id")
+          .eq("seller_id", seller.user_id)
+          .eq("status", "sold"),
+        supabase
+          .from("food_listings" as unknown as keyof Database["public"]["Tables"])
+          .select("id")
+          .eq("seller_id", seller.user_id)
+          .eq("status", "sold"),
+        supabase
+          .from("rental_listings" as unknown as keyof Database["public"]["Tables"])
+          .select("id")
+          .eq("seller_id", seller.user_id)
+          .eq("status", "rented_out"),
+        supabase
+          .from("reviews" as unknown as keyof Database["public"]["Tables"])
+          .select("id,rating")
+          .eq("seller_user_id", seller.user_id),
+      ]);
+
+      const totalSales = (productSales.data?.length ?? 0) + (notesSales.data?.length ?? 0) + (foodSales.data?.length ?? 0);
+      const rentalsCompleted = rentalCompletions.data?.length ?? 0;
+      const reviewsReceived = reviews.data?.length ?? 0;
+      const averageRating = reviewsReceived > 0 
+        ? (reviews.data?.reduce((sum, r) => sum + (r as { rating: number }).rating, 0) ?? 0) / reviewsReceived
+        : 0;
+
+      return {
+        totalSales,
+        rentalsCompleted,
+        reviewsReceived,
+        averageRating,
+      };
+    },
+    enabled: Boolean(seller?.user_id),
+  });
+
+  const { data: existingConversation } = useQuery({
+    queryKey: ["conversation_with_seller", user?.id, seller?.user_id],
+    queryFn: async () => {
+      if (!user || !seller) return null;
+      const { data } = await supabase
+        .from("conversations" as unknown as keyof Database["public"]["Tables"])
+        .select("id")
+        .eq("buyer_id", user.id)
+        .eq("seller_id", seller.user_id)
+        .maybeSingle();
+      return data as { id: string } | null;
+    },
+    enabled: Boolean(user?.id && seller?.user_id),
+  });
+
+  const { data: hasAcceptedTransaction } = useQuery({
+    queryKey: ["accepted_transaction_with_seller", user?.id, seller?.user_id],
+    queryFn: async () => {
+      if (!user || !seller) return false;
+      
+      const [productRequests, rentalRequests, notesPurchases, foodOrders] = await Promise.all([
+        supabase
+          .from("product_requests" as unknown as keyof Database["public"]["Tables"])
+          .select("id")
+          .eq("buyer_id", user.id)
+          .eq("seller_id", seller.user_id)
+          .eq("status", "accepted")
+          .limit(1),
+        supabase
+          .from("rental_requests" as unknown as keyof Database["public"]["Tables"])
+          .select("id")
+          .eq("buyer_id", user.id)
+          .eq("seller_id", seller.user_id)
+          .eq("status", "accepted")
+          .limit(1),
+        supabase
+          .from("notes_purchases" as unknown as keyof Database["public"]["Tables"])
+          .select("id")
+          .eq("buyer_id", user.id)
+          .eq("seller_id", seller.user_id)
+          .eq("status", "accepted")
+          .limit(1),
+        supabase
+          .from("food_orders" as unknown as keyof Database["public"]["Tables"])
+          .select("id")
+          .eq("buyer_id", user.id)
+          .eq("seller_id", seller.user_id)
+          .eq("status", "accepted")
+          .limit(1),
+      ]);
+
+      return (
+        (productRequests.data?.length ?? 0) > 0 ||
+        (rentalRequests.data?.length ?? 0) > 0 ||
+        (notesPurchases.data?.length ?? 0) > 0 ||
+        (foodOrders.data?.length ?? 0) > 0
+      );
+    },
+    enabled: Boolean(user?.id && seller?.user_id),
+  });
+
   const memberSince = seller?.joined_at
     ? new Date(seller.joined_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" })
     : "—";
+
+  const handleMessageSeller = () => {
+    if (!user) {
+      toast.error("Please login to message seller.");
+      return;
+    }
+
+    if (existingConversation) {
+      navigate({ to: "/chats/$id", params: { id: existingConversation.id } });
+      return;
+    }
+
+    toast.error("Chat unlocks after the seller accepts your request.");
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-secondary/40 to-background">
@@ -216,18 +404,32 @@ function SellerPage() {
                       {seller.bio && (
                         <p className="mt-1 max-w-xl text-sm text-muted-foreground">{seller.bio}</p>
                       )}
+                      {userProfile?.hostel_block && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {userProfile.hostel_type} - {userProfile.hostel_block}
+                        </p>
+                      )}
+                      {userProfile?.room_number && (
+                        <p className="text-sm text-muted-foreground">Room {userProfile.room_number}</p>
+                      )}
+                      {userProfile?.phone_number && (
+                        <p className="text-sm text-muted-foreground">{userProfile.phone_number}</p>
+                      )}
+                      {userProfile?.email && (
+                        <p className="text-sm text-muted-foreground">{userProfile.email}</p>
+                      )}
                       <div className="mt-3 flex flex-wrap gap-4 text-sm">
                         <span className="flex items-center gap-1">
                           <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                          <strong>{Number(seller.rating_avg).toFixed(1)}</strong>
+                          <strong>{(sellerMetrics?.averageRating ?? Number(seller.rating_avg)).toFixed(1)}</strong>
                         </span>
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <Package className="h-4 w-4" />
-                          {seller.total_sold} sold
+                          {sellerMetrics?.totalSales ?? seller.total_sold} sold
                         </span>
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <Home className="h-4 w-4" />
-                          {seller.total_rented_out} rentals
+                          {sellerMetrics?.rentalsCompleted ?? seller.total_rented_out} rentals
                         </span>
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <Zap className="h-4 w-4" />
@@ -240,10 +442,17 @@ function SellerPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button disabled={!user}>
+                    <Button onClick={handleMessageSeller}>
                       <MessageSquare className="mr-2 h-4 w-4" />
                       Message Seller
                     </Button>
+                    {user?.id === seller.user_id && (
+                      <Button variant="outline" asChild>
+                        <Link to="/seller-profile">
+                          Edit Profile
+                        </Link>
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -269,11 +478,11 @@ function SellerPage() {
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-3 text-sm">
                   {[
-                    ["Total sales", seller.total_sold],
+                    ["Total sales", sellerMetrics?.totalSales ?? seller.total_sold],
                     ["Active listings", products.length],
-                    ["Rentals completed", seller.total_rented_out],
-                    ["Reviews received", seller.rating_count],
-                    ["Average rating", `${Number(seller.rating_avg).toFixed(1)} / 5`],
+                    ["Rentals completed", sellerMetrics?.rentalsCompleted ?? seller.total_rented_out],
+                    ["Reviews received", sellerMetrics?.reviewsReceived ?? seller.rating_count],
+                    ["Average rating", `${(sellerMetrics?.averageRating ?? Number(seller.rating_avg)).toFixed(1)} / 5`],
                   ].map(([label, value]) => (
                     <div key={String(label)} className="rounded-lg bg-muted/40 p-3">
                       <div className="text-xs text-muted-foreground">{label}</div>
@@ -310,7 +519,8 @@ function SellerPage() {
               <TabsList>
                 <TabsTrigger value="products">Products ({products.length})</TabsTrigger>
                 <TabsTrigger value="rentals">Rentals ({rentals.length})</TabsTrigger>
-                <TabsTrigger value="reviews">Reviews ({seller.rating_count})</TabsTrigger>
+                <TabsTrigger value="reviews">Reviews ({sellerMetrics?.reviewsReceived ?? seller.rating_count})</TabsTrigger>
+                <TabsTrigger value="completed">Completed ({soldProducts.length + completedRentals.length + completedNotes.length + completedFood.length})</TabsTrigger>
               </TabsList>
 
               <TabsContent value="products" className="mt-4">
@@ -369,13 +579,13 @@ function SellerPage() {
                 <Card>
                   <CardContent className="py-8">
                     <div className="flex flex-col items-center gap-2 text-center">
-                      <div className="text-4xl font-bold">{Number(seller.rating_avg).toFixed(1)}</div>
+                      <div className="text-4xl font-bold">{(sellerMetrics?.averageRating ?? Number(seller.rating_avg)).toFixed(1)}</div>
                       <div className="flex gap-1">
                         {[1, 2, 3, 4, 5].map((i) => (
                           <Star
                             key={i}
                             className={`h-5 w-5 ${
-                              i <= Math.round(Number(seller.rating_avg))
+                              i <= Math.round(sellerMetrics?.averageRating ?? Number(seller.rating_avg))
                                 ? "fill-amber-400 text-amber-400"
                                 : "text-muted-foreground"
                             }`}
@@ -383,9 +593,9 @@ function SellerPage() {
                         ))}
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {seller.rating_count} reviews
+                        {sellerMetrics?.reviewsReceived ?? seller.rating_count} reviews
                       </p>
-                      {seller.rating_count === 0 && (
+                      {(sellerMetrics?.reviewsReceived ?? seller.rating_count) === 0 && (
                         <p className="mt-4 text-sm text-muted-foreground">
                           No written reviews yet. Be the first to buy from this seller!
                         </p>
@@ -393,6 +603,98 @@ function SellerPage() {
                     </div>
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="completed" className="mt-4">
+                <div className="space-y-6">
+                  {soldProducts.length > 0 && (
+                    <div>
+                      <h3 className="mb-3 text-sm font-semibold">Completed Products</h3>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {(soldProducts as { id: string; title: string; price: number; category: string; updated_at: string }[]).map((p) => (
+                          <Card key={p.id} className="opacity-75">
+                            <CardContent className="p-4">
+                              <h4 className="font-semibold">{p.title}</h4>
+                              <p className="text-sm text-muted-foreground">{p.category}</p>
+                              <p className="mt-2 font-bold text-primary">{formatInr(Number(p.price))}</p>
+                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline">Completed</Badge>
+                                <span>{new Date(p.updated_at).toLocaleDateString()}</span>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {completedRentals.length > 0 && (
+                    <div>
+                      <h3 className="mb-3 text-sm font-semibold">Completed Rentals</h3>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {(completedRentals as { id: string; title: string; rent_price_per_day: number; category: string; updated_at: string }[]).map((r) => (
+                          <Card key={r.id} className="opacity-75">
+                            <CardContent className="p-4">
+                              <h4 className="font-semibold">{r.title}</h4>
+                              <p className="text-sm text-muted-foreground">{r.category}</p>
+                              <p className="mt-2 font-bold text-primary">{formatInr(Number(r.rent_price_per_day))}/day</p>
+                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline">Completed</Badge>
+                                <span>{new Date(r.updated_at).toLocaleDateString()}</span>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {completedNotes.length > 0 && (
+                    <div>
+                      <h3 className="mb-3 text-sm font-semibold">Completed Notes</h3>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {(completedNotes as { id: string; title: string; price: number; category: string; updated_at: string }[]).map((n) => (
+                          <Card key={n.id} className="opacity-75">
+                            <CardContent className="p-4">
+                              <h4 className="font-semibold">{n.title}</h4>
+                              <p className="text-sm text-muted-foreground">{n.category}</p>
+                              <p className="mt-2 font-bold text-primary">{formatInr(Number(n.price))}</p>
+                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline">Completed</Badge>
+                                <span>{new Date(n.updated_at).toLocaleDateString()}</span>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {completedFood.length > 0 && (
+                    <div>
+                      <h3 className="mb-3 text-sm font-semibold">Completed Food</h3>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {(completedFood as { id: string; title: string; price: number; category: string; updated_at: string }[]).map((f) => (
+                          <Card key={f.id} className="opacity-75">
+                            <CardContent className="p-4">
+                              <h4 className="font-semibold">{f.title}</h4>
+                              <p className="text-sm text-muted-foreground">{f.category}</p>
+                              <p className="mt-2 font-bold text-primary">{formatInr(Number(f.price))}</p>
+                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline">Completed</Badge>
+                                <span>{new Date(f.updated_at).toLocaleDateString()}</span>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {soldProducts.length === 0 && completedRentals.length === 0 && completedNotes.length === 0 && completedFood.length === 0 && (
+                    <Card className="border-dashed">
+                      <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                        No completed items yet.
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
 

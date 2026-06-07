@@ -35,8 +35,8 @@ export type ProductRequestDetails = ProductRequestRow & {
     status: string;
     coverUrl: string | null;
   };
-  buyer?: { display_name: string; avatar_url: string | null };
-  seller?: { display_name: string; avatar_url: string | null };
+  buyer?: { display_name: string; avatar_url: string | null; hostel_block: string | null };
+  seller?: { display_name: string; avatar_url: string | null; hostel_block: string | null };
 };
 
 const REQUESTS_TABLE = "product_requests" as unknown as keyof Database["public"]["Tables"];
@@ -55,7 +55,7 @@ async function enrichProductRequests(rows: ProductRequestRow[]): Promise<Product
       .from(PRODUCT_IMAGES_TABLE)
       .select("product_id,storage_path,sort_index")
       .in("product_id", productIds),
-    supabase.from("profiles").select("id,full_name,avatar_url").in("id", userIds),
+    supabase.from("profiles").select("id,full_name,avatar_url,hostel_block").in("id", userIds),
   ]);
 
   const imageMap = new Map<string, string>();
@@ -70,9 +70,9 @@ async function enrichProductRequests(rows: ProductRequestRow[]): Promise<Product
   }
 
   const profileMap = new Map(
-    (profiles ?? []).map((p: { id: string; full_name: string | null; avatar_url: string | null }) => [
+    (profiles ?? []).map((p: { id: string; full_name: string | null; avatar_url: string | null; hostel_block: string | null }) => [
       p.id,
-      { display_name: p.full_name ?? "Student", avatar_url: p.avatar_url },
+      { display_name: p.full_name ?? "Student", avatar_url: p.avatar_url, hostel_block: p.hostel_block },
     ]),
   );
 
@@ -159,6 +159,8 @@ export function useCreateProductRequest() {
       requestType: ProductRequestType;
       offeredPrice?: number;
       message?: string;
+      buyerName?: string;
+      buyerHostel?: string;
     }) => {
       const { data, error } = await supabase
         .from(REQUESTS_TABLE)
@@ -176,10 +178,11 @@ export function useCreateProductRequest() {
       if (error) throw error;
 
       const actionLabel = input.requestType === "offer" ? "offer" : "purchase request";
+      const buyerDetails = input.buyerName ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}` : "";
       await createNotification({
         userId: input.sellerId,
         title: "New Purchase Request",
-        description: `You received a ${actionLabel} for "${input.productTitle}".`,
+        description: `You received a ${actionLabel} for "${input.productTitle}"${buyerDetails}.`,
         priority: "important",
         module: "marketplace",
         actionUrl: "/requests",
@@ -214,12 +217,17 @@ export function useUpdateProductRequest() {
       notificationDescription?: string;
       markSold?: boolean;
     }): Promise<ChatMutationResult> => {
+      console.log("[useUpdateProductRequest] Called with:", { requestId: input.requestId, status: input.status });
       let conversationId: string | undefined;
       const { error } = await supabase
         .from(REQUESTS_TABLE)
         .update({ status: input.status })
         .eq("id", input.requestId);
-      if (error) throw error;
+      if (error) {
+        console.error("[useUpdateProductRequest] Status update error:", error);
+        throw error;
+      }
+      console.log("[useUpdateProductRequest] Status updated to:", input.status);
 
       if (input.markSold && input.productId) {
         const { error: productErr } = await supabase
@@ -230,23 +238,30 @@ export function useUpdateProductRequest() {
       }
 
       if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
-        await createNotification({
-          userId: input.notifyUserId,
-          title: input.notificationTitle,
-          description: input.notificationDescription,
-          priority: input.status === "rejected" ? "important" : "informational",
-          module: "marketplace",
-          actionUrl: "/requests",
-          metadata: { requestId: input.requestId, productId: input.productId },
-        });
+        try {
+          await createNotification({
+            userId: input.notifyUserId,
+            title: input.notificationTitle,
+            description: input.notificationDescription,
+            priority: input.status === "rejected" ? "important" : "informational",
+            module: "marketplace",
+            actionUrl: "/requests",
+            metadata: { requestId: input.requestId, productId: input.productId },
+          });
+        } catch (notifErr) {
+          console.error("[useUpdateProductRequest] Notification creation failed (non-blocking):", notifErr);
+        }
       }
 
       if (input.status === "accepted" || input.status === "completed") {
+        console.log("[useUpdateProductRequest] Status is accepted/completed, fetching request row");
         const { data: reqRow } = await supabase
           .from(REQUESTS_TABLE)
           .select("buyer_id,seller_id,product_id")
           .eq("id", input.requestId)
           .maybeSingle();
+
+        console.log("[useUpdateProductRequest] Request row:", reqRow);
 
         if (reqRow) {
           const row = reqRow as { buyer_id: string; seller_id: string; product_id: string };
@@ -257,7 +272,10 @@ export function useUpdateProductRequest() {
             .maybeSingle();
           const title = (product as { title: string } | null)?.title ?? "Product listing";
 
+          console.log("[useUpdateProductRequest] Product title:", title);
+
           if (input.status === "accepted") {
+            console.log("[useUpdateProductRequest] Calling ensureConversationOnAccept");
             conversationId = await ensureConversationOnAccept({
               buyerId: row.buyer_id,
               sellerId: row.seller_id,
@@ -267,6 +285,7 @@ export function useUpdateProductRequest() {
               listingTitle: title,
               notifyBuyer: true,
             });
+            console.log("[useUpdateProductRequest] Conversation ID returned:", conversationId);
           } else {
             await completeConversationForRequest({
               buyerId: row.buyer_id,
@@ -274,8 +293,11 @@ export function useUpdateProductRequest() {
               contextId: row.product_id,
             });
           }
+        } else {
+          console.error("[useUpdateProductRequest] Request row not found for ID:", input.requestId);
         }
       }
+      console.log("[useUpdateProductRequest] Returning conversationId:", conversationId);
       return { conversationId };
     },
     onSuccess: () => {
@@ -284,6 +306,7 @@ export function useUpdateProductRequest() {
       invalidateChatQueries(queryClient);
     },
     onError: (err) => {
+      console.error("[useUpdateProductRequest] Mutation error:", err);
       toast.error(err instanceof Error ? err.message : "Could not update request");
     },
   });

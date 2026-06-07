@@ -67,6 +67,7 @@ export type ConversationListItem = ConversationRow & {
     display_name: string;
     avatar_url: string | null;
     email: string | null;
+    hostel_block: string | null;
   };
   unread_count: number;
   section: ChatSection;
@@ -187,18 +188,19 @@ async function enrichConversations(
 
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id,full_name,avatar_url,email")
+    .select("id,full_name,avatar_url,email,hostel_block")
     .in("id", uniqueIds);
 
   const profileMap = new Map(
     (profiles ?? []).map(
-      (p: { id: string; full_name: string | null; avatar_url: string | null; email: string }) => [
+      (p: { id: string; full_name: string | null; avatar_url: string | null; email: string; hostel_block: string | null }) => [
         p.id,
         {
           id: p.id,
           display_name: p.full_name ?? "Student",
           avatar_url: p.avatar_url,
           email: p.email,
+          hostel_block: p.hostel_block,
         },
       ],
     ),
@@ -213,6 +215,7 @@ async function enrichConversations(
         display_name: "Student",
         avatar_url: null,
         email: null,
+        hostel_block: null,
       },
       unread_count: getUnreadForUser(r, userId),
       section: classifyConversationSection(r, userId),
@@ -325,6 +328,16 @@ export async function getOrCreateConversation(input: {
   requestId?: string;
   listingTitle: string;
 }): Promise<string> {
+  console.log("[Conversation] Starting creation");
+  console.log("[getOrCreateConversation] Called with:", {
+    buyerId: input.buyerId,
+    sellerId: input.sellerId,
+    contextType: input.contextType,
+    contextId: input.contextId,
+    requestId: input.requestId,
+    listingTitle: input.listingTitle,
+  });
+
   const { data, error } = await supabase.rpc("get_or_create_conversation" as never, {
     p_buyer_id: input.buyerId,
     p_seller_id: input.sellerId,
@@ -334,7 +347,14 @@ export async function getOrCreateConversation(input: {
     p_listing_title: input.listingTitle,
   } as never);
 
-  if (!error && data) return data as string;
+  console.log("[getOrCreateConversation] RPC result:", { data, error });
+
+  if (!error && data) {
+    console.log("[Conversation] Created successfully via RPC:", data);
+    return data as string;
+  }
+
+  console.log("[getOrCreateConversation] RPC failed or returned null, checking existing conversation");
 
   const { data: existing } = await supabase
     .from(CONVERSATIONS_TABLE)
@@ -344,7 +364,14 @@ export async function getOrCreateConversation(input: {
     .eq("context_id", input.contextId)
     .maybeSingle();
 
-  if (existing) return (existing as { id: string }).id;
+  console.log("[getOrCreateConversation] Existing conversation:", existing);
+
+  if (existing) {
+    console.log("[Conversation] Created successfully (existing):", (existing as { id: string }).id);
+    return (existing as { id: string }).id;
+  }
+
+  console.log("[getOrCreateConversation] No existing conversation, inserting new one");
 
   const { data: inserted, error: insertErr } = await supabase
     .from(CONVERSATIONS_TABLE)
@@ -360,7 +387,13 @@ export async function getOrCreateConversation(input: {
     .select("id")
     .single();
 
-  if (insertErr) throw insertErr ?? error;
+  console.log("[getOrCreateConversation] Insert result:", { inserted, insertErr });
+
+  if (insertErr) {
+    console.error("[Conversation] Failed:", insertErr);
+    throw insertErr ?? error;
+  }
+  console.log("[Conversation] Created successfully via insert:", (inserted as { id: string }).id);
   return (inserted as { id: string }).id;
 }
 
@@ -625,18 +658,27 @@ export function useSendMessage(userId: string | null | undefined) {
         })
         .select("*")
         .single();
-      if (error) throw error;
+      if (error) {
+        console.error("[Chat] Message insert failed:", error);
+        throw error;
+      }
+      console.log("[Chat] Message inserted successfully");
 
-      await createNotification({
-        userId: input.recipientId,
-        title: "New message",
-        description: `New message about "${input.listingTitle}".`,
-        priority: "informational",
-        module: "chats",
-        actionUrl: `/chats/${input.conversationId}`,
-        metadata: { conversationId: input.conversationId },
-      });
+      try {
+        await createNotification({
+          userId: input.recipientId,
+          title: "New message",
+          description: `New message about "${input.listingTitle}".`,
+          priority: "informational",
+          module: "chats",
+          actionUrl: `/chats/${input.conversationId}`,
+          metadata: { conversationId: input.conversationId },
+        });
+      } catch (notifErr) {
+        console.error("[Chat] Notification failed (non-blocking):", notifErr);
+      }
 
+      console.log("[Chat] Send completed");
       return data as unknown as MessageRow;
     },
     onSuccess: (msg) => {
@@ -835,25 +877,43 @@ export async function ensureConversationOnAccept(input: {
   });
 
   if (input.notifyBuyer) {
-    await createNotification({
-      userId: input.buyerId,
-      title: "Chat Unlocked",
-      description: `You can now message the seller about "${input.listingTitle}".`,
-      priority: "important",
-      module: "chats",
-      actionUrl: `/chats/${conversationId}`,
-      metadata: { conversationId, requestId: input.requestId },
+    console.log("[ensureConversationOnAccept] Creating notifications for conversation:", {
+      buyerId: input.buyerId,
+      sellerId: input.sellerId,
+      conversationId,
     });
 
-    await createNotification({
-      userId: input.sellerId,
-      title: "Chat Ready",
-      description: `Chat is open with the buyer for "${input.listingTitle}".`,
-      priority: "informational",
-      module: "chats",
-      actionUrl: `/chats/${conversationId}`,
-      metadata: { conversationId, requestId: input.requestId },
-    });
+    try {
+      console.log("[ensureConversationOnAccept] Creating buyer notification for userId:", input.buyerId, "title: Chat Ready");
+      await createNotification({
+        userId: input.buyerId,
+        title: "Chat Ready",
+        description: `Seller accepted your request for "${input.listingTitle}".`,
+        priority: "important",
+        module: "chats",
+        actionUrl: `/chats/${conversationId}`,
+        metadata: { conversationId, requestId: input.requestId },
+      });
+      console.log("[ensureConversationOnAccept] Buyer notification created successfully");
+    } catch (notifErr) {
+      console.error("[ensureConversationOnAccept] Buyer notification failed (non-blocking):", notifErr);
+    }
+
+    try {
+      console.log("[ensureConversationOnAccept] Creating seller notification for userId:", input.sellerId, "title: Chat Ready");
+      await createNotification({
+        userId: input.sellerId,
+        title: "Chat Ready",
+        description: `Chat is open with the buyer for "${input.listingTitle}".`,
+        priority: "informational",
+        module: "chats",
+        actionUrl: `/chats/${conversationId}`,
+        metadata: { conversationId, requestId: input.requestId },
+      });
+      console.log("[ensureConversationOnAccept] Seller notification created successfully");
+    } catch (notifErr) {
+      console.error("[ensureConversationOnAccept] Seller notification failed (non-blocking):", notifErr);
+    }
   }
 
   return conversationId;

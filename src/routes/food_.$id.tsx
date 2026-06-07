@@ -226,7 +226,7 @@ function FoodDetailsPage() {
           <ListingGallery
             images={imageModels}
             alt={listing.product_name}
-            overlay={<WishlistButton itemType="food" itemId={listing.id} className="right-4 top-4" />}
+            overlay={<WishlistButton listingId={listing.id} className="right-4 top-4" />}
           />
 
           <div className="space-y-4">

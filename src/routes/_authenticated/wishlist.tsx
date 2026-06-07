@@ -13,7 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
-import { useWishlist, type WishlistItemType, type WishlistRow } from "@/lib/wishlist";
+import { useWishlist, type WishlistRow } from "@/lib/wishlist";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,8 +31,11 @@ export const Route = createFileRoute("/_authenticated/wishlist")({
   component: WishlistPage,
 });
 
-type ResolvedItem = {
-  wishlist: WishlistRow;
+type ListingType = "product" | "rental" | "food" | "notes";
+
+type NormalizedWishlistItem = {
+  listingId: string;
+  listingType: ListingType;
   title: string;
   price: number | null;
   category: string;
@@ -42,9 +45,10 @@ type ResolvedItem = {
   sellerSlug: string | null;
   sellerAvatar: string | null;
   soldOut: boolean;
+  createdAt: string;
 };
 
-const TABS: { value: "all" | WishlistItemType | "sold"; label: string }[] = [
+const TABS: { value: "all" | ListingType | "sold"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "product", label: "Products" },
   { value: "rental", label: "Rentals" },
@@ -84,7 +88,7 @@ function WishlistPage() {
     if (tab === "sold") {
       items = items.filter((i) => i.soldOut);
     } else if (tab !== "all") {
-      items = items.filter((i) => i.wishlist.item_type === tab && !i.soldOut);
+      items = items.filter((i) => i.listingType === tab && !i.soldOut);
     } else if (availableOnly) {
       items = items.filter((i) => !i.soldOut);
     }
@@ -180,7 +184,7 @@ function WishlistPage() {
             </div>
           ) : (
             filtered.map((item) => (
-              <Card key={item.wishlist.id} className="overflow-hidden border-border/60">
+              <Card key={item.listingId} className="overflow-hidden border-border/60">
                 <CardContent className="flex flex-col gap-4 p-4 sm:flex-row">
                   <div className="relative shrink-0">
                     {item.coverUrl ? (
@@ -201,7 +205,7 @@ function WishlistPage() {
                           : "bg-emerald-500 hover:bg-emerald-500"
                       }`}
                     >
-                      {item.soldOut ? "Sold" : timeAgo(item.wishlist.created_at)}
+                      {item.soldOut ? "Sold" : timeAgo(item.createdAt)}
                     </Badge>
                   </div>
 
@@ -216,8 +220,7 @@ function WishlistPage() {
                         )}
                       </div>
                       <WishlistButton
-                        itemType={item.wishlist.item_type}
-                        itemId={item.wishlist.item_id}
+                        listingId={item.listingId}
                         variant="inline"
                       />
                     </div>
@@ -256,15 +259,14 @@ function WishlistPage() {
                         size="sm"
                         variant={item.soldOut ? "outline" : "default"}
                         onClick={() => {
-                          const { item_type, item_id } = item.wishlist;
-                          if (item_type === "product") {
-                            navigate({ to: "/product/$id", params: { id: item_id } });
-                          } else if (item_type === "rental") {
-                            navigate({ to: "/rent/$id", params: { id: item_id } });
-                          } else if (item_type === "food") {
-                            navigate({ to: "/food/$id", params: { id: item_id } });
+                          if (item.listingType === "product") {
+                            navigate({ to: "/product/$id", params: { id: item.listingId } });
+                          } else if (item.listingType === "rental") {
+                            navigate({ to: "/rent/$id", params: { id: item.listingId } });
+                          } else if (item.listingType === "food") {
+                            navigate({ to: "/food/$id", params: { id: item.listingId } });
                           } else {
-                            navigate({ to: "/notes/$id", params: { id: item_id } });
+                            navigate({ to: "/notes/$id", params: { id: item.listingId } });
                           }
                         }}
                       >
@@ -283,242 +285,202 @@ function WishlistPage() {
   );
 }
 
-async function resolveWishlistItems(rows: WishlistRow[]): Promise<ResolvedItem[]> {
-  const byType = {
-    product: rows.filter((r) => r.item_type === "product"),
-    rental: rows.filter((r) => r.item_type === "rental"),
-    food: rows.filter((r) => r.item_type === "food"),
-    notes: rows.filter((r) => r.item_type === "notes"),
-  };
+async function resolveWishlistItems(rows: WishlistRow[]): Promise<NormalizedWishlistItem[]> {
+  console.log("[Wishlist Rows]", rows);
+  const results: NormalizedWishlistItem[] = [];
 
-  const results: ResolvedItem[] = [];
+  for (const row of rows) {
+    const listingId = row.listing_id;
+    let found = false;
 
-  if (byType.product.length) {
-    const ids = byType.product.map((r) => r.item_id);
-    const { data: products } = await supabase
-      .from("product_listings" as unknown as keyof Database["public"]["Tables"])
-      .select("id,title,price,category,custom_category,status,seller_id")
-      .in("id", ids);
-    const { data: images } = await supabase
-      .from("product_images" as unknown as keyof Database["public"]["Tables"])
-      .select("product_id,storage_path,sort_index")
-      .in("product_id", ids);
-    const sellerIds = [...new Set((products ?? []).map((p: { seller_id: string }) => p.seller_id))];
-    const { data: sellers } = await supabase
-      .from("seller_profiles")
-      .select("user_id,slug,display_name,avatar_url")
-      .in("user_id", sellerIds);
-    const sellerMap = new Map(
-      (sellers ?? []).map((s: { user_id: string; slug: string; display_name: string; avatar_url: string | null }) => [
-        s.user_id,
-        s,
-      ]),
-    );
-    const imageMap = new Map<string, string>();
-    for (const img of images ?? []) {
-      const row = img as { product_id: string; storage_path: string; sort_index: number };
-      if (!imageMap.has(row.product_id)) {
-        imageMap.set(
-          row.product_id,
-          supabase.storage.from("product-images").getPublicUrl(row.storage_path).data.publicUrl,
-        );
+    // Try product_listings
+    try {
+      const { data: product } = await supabase
+        .from("product_listings" as unknown as keyof Database["public"]["Tables"])
+        .select("id,title,price,category,custom_category,status,seller_id")
+        .eq("id", listingId)
+        .single();
+      
+      if (product) {
+        const { data: images } = await supabase
+          .from("product_images" as unknown as keyof Database["public"]["Tables"])
+          .select("storage_path,sort_index")
+          .eq("product_id", listingId)
+          .order("sort_index", { ascending: true })
+          .limit(1);
+        
+        const { data: seller } = await supabase
+          .from("seller_profiles")
+          .select("slug,display_name,avatar_url")
+          .eq("user_id", product.seller_id)
+          .single();
+
+        const coverUrl = images && images.length > 0
+          ? supabase.storage.from("product-images").getPublicUrl(images[0].storage_path).data.publicUrl
+          : null;
+
+        results.push({
+          listingId,
+          listingType: "product",
+          title: product.title,
+          price: Number(product.price),
+          category: product.category === "Others" && product.custom_category ? product.custom_category : product.category,
+          coverUrl,
+          status: product.status,
+          sellerName: seller?.display_name ?? "Seller",
+          sellerSlug: seller?.slug ?? null,
+          sellerAvatar: seller?.avatar_url ?? null,
+          soldOut: product.status !== "available",
+          createdAt: row.created_at,
+        });
+        found = true;
       }
+    } catch (e) {
+      // Product not found, continue to next table
     }
-    for (const w of byType.product) {
-      const p = (products ?? []).find((x: { id: string }) => x.id === w.item_id) as
-        | {
-            id: string;
-            title: string;
-            price: number;
-            category: string;
-            custom_category: string | null;
-            status: string;
-            seller_id: string;
-          }
-        | undefined;
-      if (!p) continue;
-      const seller = sellerMap.get(p.seller_id);
-      results.push({
-        wishlist: w,
-        title: p.title,
-        price: Number(p.price),
-        category: p.category === "Others" && p.custom_category ? p.custom_category : p.category,
-        coverUrl: imageMap.get(p.id) ?? null,
-        status: p.status,
-        sellerName: seller?.display_name ?? "Seller",
-        sellerSlug: seller?.slug ?? null,
-        sellerAvatar: seller?.avatar_url ?? null,
-        soldOut: p.status !== "available",
-      });
-    }
-  }
 
-  if (byType.rental.length) {
-    const ids = byType.rental.map((r) => r.item_id);
-    const { data: rentals } = await supabase
-      .from("rental_listings" as unknown as keyof Database["public"]["Tables"])
-      .select("id,title,rent_price_per_day,category,custom_category,status,seller_id")
-      .in("id", ids);
-    const { data: rentalImages } = await supabase
-      .from("rental_images" as unknown as keyof Database["public"]["Tables"])
-      .select("rental_id,storage_path,sort_index")
-      .in("rental_id", ids);
-    const rentalImageMap = new Map<string, string>();
-    for (const img of rentalImages ?? []) {
-      const row = img as { rental_id: string; storage_path: string };
-      if (!rentalImageMap.has(row.rental_id)) {
-        rentalImageMap.set(
-          row.rental_id,
-          supabase.storage.from("rental-images").getPublicUrl(row.storage_path).data.publicUrl,
-        );
+    if (found) continue;
+
+    // Try rental_listings
+    try {
+      const { data: rental } = await supabase
+        .from("rental_listings" as unknown as keyof Database["public"]["Tables"])
+        .select("id,title,rent_price_per_day,category,custom_category,status,seller_id")
+        .eq("id", listingId)
+        .single();
+      
+      if (rental) {
+        const { data: images } = await supabase
+          .from("rental_images" as unknown as keyof Database["public"]["Tables"])
+          .select("storage_path,sort_index")
+          .eq("rental_id", listingId)
+          .order("sort_index", { ascending: true })
+          .limit(1);
+        
+        const { data: seller } = await supabase
+          .from("seller_profiles")
+          .select("slug,display_name,avatar_url")
+          .eq("user_id", rental.seller_id)
+          .single();
+
+        const coverUrl = images && images.length > 0
+          ? supabase.storage.from("rental-images").getPublicUrl(images[0].storage_path).data.publicUrl
+          : null;
+
+        results.push({
+          listingId,
+          listingType: "rental",
+          title: rental.title,
+          price: Number(rental.rent_price_per_day),
+          category: rental.category === "Others" && rental.custom_category ? rental.custom_category : rental.category,
+          coverUrl,
+          status: rental.status,
+          sellerName: seller?.display_name ?? "Seller",
+          sellerSlug: seller?.slug ?? null,
+          sellerAvatar: seller?.avatar_url ?? null,
+          soldOut: rental.status !== "available",
+          createdAt: row.created_at,
+        });
+        found = true;
       }
+    } catch (e) {
+      // Rental not found, continue to next table
     }
-    const sellerIds = [...new Set((rentals ?? []).map((r: { seller_id: string }) => r.seller_id))];
-    const { data: sellers } = await supabase
-      .from("seller_profiles")
-      .select("user_id,slug,display_name,avatar_url")
-      .in("user_id", sellerIds);
-    const sellerMap = new Map(
-      (sellers ?? []).map((s: { user_id: string; slug: string; display_name: string; avatar_url: string | null }) => [
-        s.user_id,
-        s,
-      ]),
-    );
-    for (const w of byType.rental) {
-      const r = (rentals ?? []).find((x: { id: string }) => x.id === w.item_id) as
-        | {
-            id: string;
-            title: string;
-            rent_price_per_day: number;
-            category: string;
-            custom_category: string | null;
-            status: string;
-            seller_id: string;
-          }
-        | undefined;
-      if (!r) continue;
-      const seller = sellerMap.get(r.seller_id);
-      results.push({
-        wishlist: w,
-        title: r.title,
-        price: Number(r.rent_price_per_day),
-        category: r.category === "Others" && r.custom_category ? r.custom_category : r.category,
-        coverUrl: rentalImageMap.get(r.id) ?? null,
-        status: r.status,
-        sellerName: seller?.display_name ?? "Seller",
-        sellerSlug: seller?.slug ?? null,
-        sellerAvatar: seller?.avatar_url ?? null,
-        soldOut: r.status !== "available",
-      });
-    }
-  }
 
-  if (byType.food.length) {
-    const ids = byType.food.map((r) => r.item_id);
-    const { data: foods } = await supabase
-      .from("food_listings" as unknown as keyof Database["public"]["Tables"])
-      .select("id,product_name,price,category,status,seller_id")
-      .in("id", ids);
-    const { data: images } = await supabase
-      .from("food_images" as unknown as keyof Database["public"]["Tables"])
-      .select("food_listing_id,storage_path,sort_index")
-      .in("food_listing_id", ids);
-    const sellerIds = [...new Set((foods ?? []).map((f: { seller_id: string }) => f.seller_id))];
-    const { data: sellers } = await supabase
-      .from("seller_profiles")
-      .select("user_id,slug,display_name,avatar_url")
-      .in("user_id", sellerIds);
-    const sellerMap = new Map(
-      (sellers ?? []).map((s: { user_id: string; slug: string; display_name: string; avatar_url: string | null }) => [
-        s.user_id,
-        s,
-      ]),
-    );
-    const imageMap = new Map<string, string>();
-    for (const img of images ?? []) {
-      const row = img as { food_listing_id: string; storage_path: string };
-      if (!imageMap.has(row.food_listing_id)) {
-        imageMap.set(
-          row.food_listing_id,
-          supabase.storage.from("food-images").getPublicUrl(row.storage_path).data.publicUrl,
-        );
+    if (found) continue;
+
+    // Try food_listings
+    try {
+      const { data: food } = await supabase
+        .from("food_listings" as unknown as keyof Database["public"]["Tables"])
+        .select("id,product_name,price,category,status,seller_id")
+        .eq("id", listingId)
+        .single();
+      
+      if (food) {
+        const { data: images } = await supabase
+          .from("food_images" as unknown as keyof Database["public"]["Tables"])
+          .select("storage_path,sort_index")
+          .eq("food_listing_id", listingId)
+          .order("sort_index", { ascending: true })
+          .limit(1);
+        
+        const { data: seller } = await supabase
+          .from("seller_profiles")
+          .select("slug,display_name,avatar_url")
+          .eq("user_id", food.seller_id)
+          .single();
+
+        const coverUrl = images && images.length > 0
+          ? supabase.storage.from("food-images").getPublicUrl(images[0].storage_path).data.publicUrl
+          : null;
+
+        results.push({
+          listingId,
+          listingType: "food",
+          title: food.product_name,
+          price: Number(food.price),
+          category: food.category,
+          coverUrl,
+          status: food.status,
+          sellerName: seller?.display_name ?? "Seller",
+          sellerSlug: seller?.slug ?? null,
+          sellerAvatar: seller?.avatar_url ?? null,
+          soldOut: food.status !== "available",
+          createdAt: row.created_at,
+        });
+        found = true;
       }
+    } catch (e) {
+      // Food not found, continue to next table
     }
-    for (const w of byType.food) {
-      const f = (foods ?? []).find((x: { id: string }) => x.id === w.item_id) as
-        | {
-            id: string;
-            product_name: string;
-            price: number;
-            category: string;
-            status: string;
-            seller_id: string;
-          }
-        | undefined;
-      if (!f) continue;
-      const seller = sellerMap.get(f.seller_id);
-      results.push({
-        wishlist: w,
-        title: f.product_name,
-        price: Number(f.price),
-        category: f.category,
-        coverUrl: imageMap.get(f.id) ?? null,
-        status: f.status,
-        sellerName: seller?.display_name ?? "Seller",
-        sellerSlug: seller?.slug ?? null,
-        sellerAvatar: seller?.avatar_url ?? null,
-        soldOut: f.status !== "available",
-      });
+
+    if (found) continue;
+
+    // Try notes_listings
+    try {
+      const { data: notes } = await supabase
+        .from("notes_listings" as unknown as keyof Database["public"]["Tables"])
+        .select("id,title,subject,status,seller_id,is_free,price")
+        .eq("id", listingId)
+        .single();
+      
+      if (notes) {
+        const { data: seller } = await supabase
+          .from("seller_profiles")
+          .select("slug,display_name,avatar_url")
+          .eq("user_id", notes.seller_id)
+          .single();
+
+        results.push({
+          listingId,
+          listingType: "notes",
+          title: notes.title,
+          price: notes.is_free ? 0 : Number(notes.price ?? 0),
+          category: notes.subject,
+          coverUrl: null,
+          status: notes.status,
+          sellerName: seller?.display_name ?? "Seller",
+          sellerSlug: seller?.slug ?? null,
+          sellerAvatar: seller?.avatar_url ?? null,
+          soldOut: notes.status !== "available",
+          createdAt: row.created_at,
+        });
+        found = true;
+      }
+    } catch (e) {
+      // Notes not found
+    }
+
+    if (!found) {
+      console.warn(`[Wishlist] Listing not found: ${listingId}`);
     }
   }
 
-  if (byType.notes.length) {
-    const ids = byType.notes.map((r) => r.item_id);
-    const { data: notes } = await supabase
-      .from("notes_listings" as unknown as keyof Database["public"]["Tables"])
-      .select("id,title,subject,status,seller_id,is_free,price")
-      .in("id", ids);
-    const sellerIds = [...new Set((notes ?? []).map((n: { seller_id: string }) => n.seller_id))];
-    const { data: sellers } = await supabase
-      .from("seller_profiles")
-      .select("user_id,slug,display_name,avatar_url")
-      .in("user_id", sellerIds);
-    const sellerMap = new Map(
-      (sellers ?? []).map((s: { user_id: string; slug: string; display_name: string; avatar_url: string | null }) => [
-        s.user_id,
-        s,
-      ]),
-    );
-    for (const w of byType.notes) {
-      const n = (notes ?? []).find((x: { id: string }) => x.id === w.item_id) as
-        | {
-            id: string;
-            title: string;
-            subject: string;
-            status: string;
-            seller_id: string;
-            is_free: boolean;
-            price: number | null;
-          }
-        | undefined;
-      if (!n) continue;
-      const seller = sellerMap.get(n.seller_id);
-      results.push({
-        wishlist: w,
-        title: n.title,
-        price: n.is_free ? 0 : Number(n.price ?? 0),
-        category: n.subject,
-        coverUrl: null,
-        status: n.status,
-        sellerName: seller?.display_name ?? "Seller",
-        sellerSlug: seller?.slug ?? null,
-        sellerAvatar: seller?.avatar_url ?? null,
-        soldOut: n.status !== "available",
-      });
-    }
-  }
-
+  console.log("[Wishlist Resolved Listings]", results);
+  console.log("[Wishlist Final Render]", results.length);
+  
   return results.sort(
-    (a, b) => new Date(b.wishlist.created_at).getTime() - new Date(a.wishlist.created_at).getTime(),
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 }

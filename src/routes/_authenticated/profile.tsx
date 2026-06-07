@@ -19,7 +19,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
+import { HOSTEL_TYPES, LADIES_HOSTEL_BLOCKS, MENS_HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
 import { useUnreadChatCount } from "@/lib/chat";
 import { useUnreadNotificationCount } from "@/lib/notifications";
 import { fetchWishlist } from "@/lib/wishlist";
@@ -53,7 +53,12 @@ function UserProfilePage() {
   const { user, profile, loading, refreshProfile } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [hostelType, setHostelType] = useState("");
   const [hostelBlock, setHostelBlock] = useState("");
+  const [otherHostelBlock, setOtherHostelBlock] = useState("");
+  const [roomNumber, setRoomNumber] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -62,7 +67,12 @@ function UserProfilePage() {
   useEffect(() => {
     if (profile) {
       setFullName(profile.full_name ?? "");
+      setHostelType(profile.hostel_type ?? "");
       setHostelBlock(profile.hostel_block ?? "");
+      setOtherHostelBlock(profile.hostel_block === "Other" ? profile.hostel_block ?? "" : "");
+      setRoomNumber(profile.room_number ?? "");
+      setPhoneNumber(profile.phone_number ?? "");
+      setEmail(profile.email ?? "");
       setAvatarUrl(profile.avatar_url ?? "");
     }
   }, [profile]);
@@ -150,9 +160,13 @@ function UserProfilePage() {
     if (!user) return;
     setSubmitting(true);
     try {
+      const finalHostelBlock = hostelBlock === "Other" ? otherHostelBlock : hostelBlock;
       const payload = {
         full_name: fullName.trim(),
-        hostel_block: hostelBlock,
+        hostel_type: hostelType,
+        hostel_block: finalHostelBlock,
+        room_number: roomNumber.trim() || null,
+        phone_number: phoneNumber.trim() || null,
         avatar_url: avatarUrl.trim() || null,
       };
       const { error } = profile
@@ -251,7 +265,13 @@ function UserProfilePage() {
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{profile?.email}</p>
                 {profile?.hostel_block && (
-                  <p className="text-sm text-muted-foreground">{profile.hostel_block}</p>
+                  <p className="text-sm text-muted-foreground">{profile.hostel_type} - {profile.hostel_block}</p>
+                )}
+                {profile?.room_number && (
+                  <p className="text-sm text-muted-foreground">Room {profile.room_number}</p>
+                )}
+                {profile?.phone_number && (
+                  <p className="text-sm text-muted-foreground">{profile.phone_number}</p>
                 )}
               </div>
             </div>
@@ -366,23 +386,78 @@ function UserProfilePage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="hostelBlock">Hostel block</Label>
+              <Label htmlFor="hostelType">Hostel Type</Label>
               <select
-                id="hostelBlock"
-                value={hostelBlock}
-                onChange={(e) => setHostelBlock(e.target.value)}
+                id="hostelType"
+                value={hostelType}
+                onChange={(e) => {
+                  setHostelType(e.target.value);
+                  setHostelBlock("");
+                }}
                 required
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="" disabled>
-                  Select your block
+                  Select hostel type
                 </option>
-                {HOSTEL_BLOCKS.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
+                {HOSTEL_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
                   </option>
                 ))}
               </select>
+            </div>
+            {hostelType && (
+              <div className="space-y-2">
+                <Label htmlFor="hostelBlock">Hostel Block</Label>
+                <select
+                  id="hostelBlock"
+                  value={hostelBlock}
+                  onChange={(e) => setHostelBlock(e.target.value)}
+                  required
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="" disabled>
+                    Select your block
+                  </option>
+                  {(hostelType === "Ladies Hostel" ? LADIES_HOSTEL_BLOCKS : MENS_HOSTEL_BLOCKS).map((block) => (
+                    <option key={block} value={block}>
+                      {block}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {hostelBlock === "Other" && (
+              <div className="space-y-2">
+                <Label htmlFor="otherHostelBlock">Other Hostel Block</Label>
+                <Input
+                  id="otherHostelBlock"
+                  value={otherHostelBlock}
+                  onChange={(e) => setOtherHostelBlock(e.target.value)}
+                  required
+                  placeholder="Enter your hostel block"
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="roomNumber">Room Number (Optional)</Label>
+              <Input
+                id="roomNumber"
+                value={roomNumber}
+                onChange={(e) => setRoomNumber(e.target.value)}
+                placeholder="e.g., 101"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumber">Phone Number (Optional)</Label>
+              <Input
+                id="phoneNumber"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="e.g., 9876543210"
+                pattern="[0-9]{10}"
+              />
             </div>
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

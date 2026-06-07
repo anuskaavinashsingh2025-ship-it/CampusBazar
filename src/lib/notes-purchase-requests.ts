@@ -88,6 +88,8 @@ export function useCreateNotesPurchase() {
       sellerId: string;
       listingTitle: string;
       message?: string;
+      buyerName?: string;
+      buyerHostel?: string;
     }) => {
       const { data, error } = await supabase
         .from(REQUESTS_TABLE)
@@ -102,10 +104,11 @@ export function useCreateNotesPurchase() {
         .single();
       if (error) throw error;
 
+      const buyerDetails = input.buyerName ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}` : "";
       await createNotification({
         userId: input.sellerId,
         title: "Notes Purchase Request",
-        description: `You received a request for "${input.listingTitle}".`,
+        description: `You received a request for "${input.listingTitle}"${buyerDetails}.`,
         priority: "important",
         module: "notes",
         actionUrl: "/requests",
@@ -137,31 +140,43 @@ export function useUpdateNotesPurchase() {
       notificationTitle?: string;
       notificationDescription?: string;
     }): Promise<ChatMutationResult> => {
+      console.log("[useUpdateNotesPurchase] Called with:", { requestId: input.requestId, status: input.status });
       let conversationId: string | undefined;
       const { error } = await supabase
         .from(REQUESTS_TABLE)
         .update({ status: input.status })
         .eq("id", input.requestId);
-      if (error) throw error;
+      if (error) {
+        console.error("[useUpdateNotesPurchase] Status update error:", error);
+        throw error;
+      }
+      console.log("[useUpdateNotesPurchase] Status updated to:", input.status);
 
       if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
-        await createNotification({
-          userId: input.notifyUserId,
-          title: input.notificationTitle,
-          description: input.notificationDescription,
-          priority: input.status === "rejected" ? "important" : "informational",
-          module: "notes",
-          actionUrl: "/requests",
-          metadata: { requestId: input.requestId },
-        });
+        try {
+          await createNotification({
+            userId: input.notifyUserId,
+            title: input.notificationTitle,
+            description: input.notificationDescription,
+            priority: input.status === "rejected" ? "important" : "informational",
+            module: "notes",
+            actionUrl: "/requests",
+            metadata: { requestId: input.requestId },
+          });
+        } catch (notifErr) {
+          console.error("[useUpdateNotesPurchase] Notification creation failed (non-blocking):", notifErr);
+        }
       }
 
       if (input.status === "accepted" || input.status === "completed") {
+        console.log("[useUpdateNotesPurchase] Status is accepted/completed, fetching request row");
         const { data: reqRow } = await supabase
           .from(REQUESTS_TABLE)
           .select("buyer_id,seller_id,notes_listing_id")
           .eq("id", input.requestId)
           .maybeSingle();
+
+        console.log("[useUpdateNotesPurchase] Request row:", reqRow);
 
         if (reqRow) {
           const row = reqRow as {
@@ -176,7 +191,10 @@ export function useUpdateNotesPurchase() {
             .maybeSingle();
           const title = (listing as { title: string } | null)?.title ?? "Notes listing";
 
+          console.log("[useUpdateNotesPurchase] Listing title:", title);
+
           if (input.status === "accepted") {
+            console.log("[useUpdateNotesPurchase] Calling ensureConversationOnAccept");
             conversationId = await ensureConversationOnAccept({
               buyerId: row.buyer_id,
               sellerId: row.seller_id,
@@ -186,6 +204,7 @@ export function useUpdateNotesPurchase() {
               listingTitle: title,
               notifyBuyer: true,
             });
+            console.log("[useUpdateNotesPurchase] Conversation ID returned:", conversationId);
           } else {
             await completeConversationForRequest({
               buyerId: row.buyer_id,
@@ -193,8 +212,11 @@ export function useUpdateNotesPurchase() {
               contextId: row.notes_listing_id,
             });
           }
+        } else {
+          console.error("[useUpdateNotesPurchase] Request row not found for ID:", input.requestId);
         }
       }
+      console.log("[useUpdateNotesPurchase] Returning conversationId:", conversationId);
       return { conversationId };
     },
     onSuccess: () => {

@@ -1,8 +1,10 @@
 import { BadgeCheck, Mail, Star, ShoppingBag, Calendar } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import type { ParticipantTrustInfo } from "@/lib/chat";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 
 type ChatTrustHeaderProps = {
   trust: ParticipantTrustInfo;
@@ -13,14 +15,32 @@ type ChatTrustHeaderProps = {
 export function ChatTrustHeader({ trust, listingTitle, isOnline }: ChatTrustHeaderProps) {
   const successfulTransactions = trust.total_sold + trust.total_rented_out;
 
+  const { data: sellerProfile } = useQuery({
+    queryKey: ["seller_profile_by_user_id", trust.user_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("seller_profiles")
+        .select("slug")
+        .eq("user_id", trust.user_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: Boolean(trust.user_id),
+  });
+
+  const sellerUrl = sellerProfile?.slug ? `/seller/${sellerProfile.slug}` : `/seller/${trust.user_id}`;
+
   return (
     <div className="border-b bg-card/95 px-4 py-3 backdrop-blur">
       <div className="flex items-start gap-3">
         <div className="relative">
-          <Avatar className="h-11 w-11">
-            {trust.avatar_url ? <AvatarImage src={trust.avatar_url} alt="" /> : null}
-            <AvatarFallback>{trust.display_name.slice(0, 2).toUpperCase()}</AvatarFallback>
-          </Avatar>
+          <a href={sellerUrl} className="block">
+            <Avatar className="h-11 w-11">
+              {trust.avatar_url ? <AvatarImage src={trust.avatar_url} alt="" /> : null}
+              <AvatarFallback>{trust.display_name.slice(0, 2).toUpperCase()}</AvatarFallback>
+            </Avatar>
+          </a>
           <span
             className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card ${
               isOnline ? "bg-emerald-500" : "bg-slate-300"
@@ -29,7 +49,9 @@ export function ChatTrustHeader({ trust, listingTitle, isOnline }: ChatTrustHead
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-sm font-semibold">{trust.display_name}</h2>
+            <a href={sellerUrl} className="hover:underline">
+              <h2 className="truncate text-sm font-semibold">{trust.display_name}</h2>
+            </a>
             {trust.is_seller_verified && (
               <Badge variant="secondary" className="gap-1 text-[10px]">
                 <BadgeCheck className="h-3 w-3" />

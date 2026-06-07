@@ -368,7 +368,7 @@ function FoodHubPage() {
                               </p>
                             </div>
                             <div onClick={(e) => e.stopPropagation()} role="presentation">
-                              <WishlistButton itemType="food" itemId={l.id} />
+                              <WishlistButton listingId={l.id} />
                             </div>
                           </div>
                           <p className="mt-1 text-base font-bold text-sky-700">

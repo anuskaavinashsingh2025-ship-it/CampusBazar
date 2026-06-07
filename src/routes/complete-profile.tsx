@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { bootstrapUserAccount } from "@/lib/supabase-account";
-import { HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
+import { HOSTEL_TYPES, LADIES_HOSTEL_BLOCKS, MENS_HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +27,11 @@ function CompleteProfilePage() {
   const navigate = useNavigate();
   const { user, profile, loading, isProfileComplete, refreshProfile } = useAuth();
   const [fullName, setFullName] = useState("");
+  const [hostelType, setHostelType] = useState("");
   const [hostelBlock, setHostelBlock] = useState("");
+  const [otherHostelBlock, setOtherHostelBlock] = useState("");
+  const [roomNumber, setRoomNumber] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -42,7 +46,11 @@ function CompleteProfilePage() {
   useEffect(() => {
     if (profile) {
       setFullName(profile.full_name ?? "");
+      setHostelType(profile.hostel_type ?? "");
       setHostelBlock(profile.hostel_block ?? "");
+      setOtherHostelBlock(profile.hostel_block === "Other" ? profile.hostel_block ?? "" : "");
+      setRoomNumber(profile.room_number ?? "");
+      setPhoneNumber(profile.phone_number ?? "");
     }
   }, [profile]);
 
@@ -53,9 +61,13 @@ function CompleteProfilePage() {
     try {
       await bootstrapUserAccount(user);
 
+      const finalHostelBlock = hostelBlock === "Other" ? otherHostelBlock : hostelBlock;
       const payload = {
         full_name: fullName.trim(),
-        hostel_block: hostelBlock,
+        hostel_type: hostelType,
+        hostel_block: finalHostelBlock,
+        room_number: roomNumber.trim() || null,
+        phone_number: phoneNumber.trim() || null,
         is_profile_complete: true,
       };
       const { error } = profile
@@ -85,8 +97,8 @@ function CompleteProfilePage() {
     );
   }
 
-  const filled = [fullName.trim(), hostelBlock].filter(Boolean).length;
-  const progress = (filled / 2) * 100;
+  const filled = [fullName.trim(), hostelType, hostelBlock].filter(Boolean).length;
+  const progress = (filled / 3) * 100;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-secondary via-background to-accent/40 px-4 py-12">
@@ -127,23 +139,82 @@ function CompleteProfilePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="hostelBlock">Hostel block</Label>
+                <Label htmlFor="hostelType">Hostel Type</Label>
                 <select
-                  id="hostelBlock"
-                  value={hostelBlock}
-                  onChange={(e) => setHostelBlock(e.target.value)}
+                  id="hostelType"
+                  value={hostelType}
+                  onChange={(e) => {
+                    setHostelType(e.target.value);
+                    setHostelBlock("");
+                  }}
                   required
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <option value="" disabled>
-                    Select your block
+                    Select hostel type
                   </option>
-                  {HOSTEL_BLOCKS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
+                  {HOSTEL_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {hostelType && (
+                <div className="space-y-2">
+                  <Label htmlFor="hostelBlock">Hostel Block</Label>
+                  <select
+                    id="hostelBlock"
+                    value={hostelBlock}
+                    onChange={(e) => setHostelBlock(e.target.value)}
+                    required
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="" disabled>
+                      Select your block
+                    </option>
+                    {(hostelType === "Ladies Hostel" ? LADIES_HOSTEL_BLOCKS : MENS_HOSTEL_BLOCKS).map((block) => (
+                      <option key={block} value={block}>
+                        {block}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {hostelBlock === "Other" && (
+                <div className="space-y-2">
+                  <Label htmlFor="otherHostelBlock">Other Hostel Block</Label>
+                  <Input
+                    id="otherHostelBlock"
+                    value={otherHostelBlock}
+                    onChange={(e) => setOtherHostelBlock(e.target.value)}
+                    required
+                    placeholder="Enter your hostel block"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="roomNumber">Room Number (Optional)</Label>
+                <Input
+                  id="roomNumber"
+                  value={roomNumber}
+                  onChange={(e) => setRoomNumber(e.target.value)}
+                  placeholder="e.g., 101"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber">Phone Number (Optional)</Label>
+                <Input
+                  id="phoneNumber"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="e.g., 9876543210"
+                  pattern="[0-9]{10}"
+                />
               </div>
 
               <Button type="submit" className="w-full" disabled={submitting}>

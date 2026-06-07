@@ -354,7 +354,10 @@ function MarketplaceHome() {
               variant="ghost"
               size="icon"
               aria-label="Chats"
-              onClick={() => handleDisabled("Chats")}
+              onClick={() => {
+                if (!user) navigate({ to: "/login" });
+                else navigate({ to: "/chats" });
+              }}
             >
               <MessageSquare className="h-5 w-5" />
             </Button>
@@ -497,7 +500,10 @@ function MarketplaceHome() {
           <button
             type="button"
             className="flex flex-col items-center gap-1 text-xs text-muted-foreground"
-            onClick={() => handleDisabled("Chats")}
+            onClick={() => {
+              if (!user) navigate({ to: "/login" });
+              else navigate({ to: "/chats" });
+            }}
           >
             <MessageSquare className="h-5 w-5" />
             Chats
@@ -531,7 +537,10 @@ function MarketplaceHome() {
           variant="secondary"
           size="icon"
           className="h-10 w-10 rounded-full shadow"
-          onClick={() => handleDisabled("Chats")}
+          onClick={() => {
+            if (!user) navigate({ to: "/login" });
+            else navigate({ to: "/chats" });
+          }}
           aria-label="Chats"
         >
           <MessageSquare className="h-5 w-5" />

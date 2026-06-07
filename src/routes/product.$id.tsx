@@ -188,6 +188,8 @@ function ProductDetailsPage() {
       sellerId: product.seller_id,
       productTitle: product.title,
       requestType: "buy",
+      buyerName: user.user_metadata?.full_name || user.email?.split('@')[0] || "Buyer",
+      buyerHostel: user.user_metadata?.hostel_block || null,
     });
   };
 
@@ -207,6 +209,8 @@ function ProductDetailsPage() {
         requestType: "offer",
         offeredPrice: price,
         message: offerMessage,
+        buyerName: user.user_metadata?.full_name || user.email?.split('@')[0] || "Buyer",
+        buyerHostel: user.user_metadata?.hostel_block || null,
       },
       { onSuccess: () => setOfferOpen(false) },
     );
@@ -271,7 +275,7 @@ function ProductDetailsPage() {
           <ListingGallery
             images={coverImageModels}
             alt={product.title}
-            overlay={<WishlistButton itemType="product" itemId={product.id} className="right-4 top-4" />}
+            overlay={<WishlistButton listingId={product.id} className="right-4 top-4" />}
           />
 
           <div className="space-y-4">
