@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, useEffect, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowLeft, GraduationCap, Loader2, Upload } from "lucide-react";
@@ -7,6 +7,7 @@ import { ArrowLeft, GraduationCap, Loader2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { ensureSellerProfile } from "@/lib/supabase-account";
+import { checkBanStatus } from "@/lib/ban-enforcement";
 import type { Database } from "@/integrations/supabase/types";
 
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,21 @@ function UploadNotesPage() {
   const { user, profile } = useAuth();
   const search = Route.useSearch();
   const type = search.type === "rent" ? "rent" : "sell";
+
+  // Check ban status
+  useEffect(() => {
+    if (user) {
+      checkBanStatus(user.id).then((banStatus) => {
+        if (banStatus.isBanned) {
+          toast.error(banStatus.isPermanent 
+            ? "Your account has been permanently banned." 
+            : `Your account is banned until ${new Date(banStatus.bannedUntil!).toLocaleDateString()}.`
+          );
+          navigate({ to: "/banned" as any });
+        }
+      });
+    }
+  }, [user, navigate]);
 
   const categories = type === "rent" ? RENT_CATEGORIES : SELL_CATEGORIES;
 

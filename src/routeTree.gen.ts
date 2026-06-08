@@ -10,12 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FoodRouteImport } from './routes/food'
 import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as CompleteProfileRouteImport } from './routes/complete-profile'
+import { Route as BannedRouteImport } from './routes/banned'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RentIndexRouteImport } from './routes/rent.index'
@@ -47,6 +49,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NotesRoute = NotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -75,6 +82,11 @@ const FeedbackRoute = FeedbackRouteImport.update({
 const CompleteProfileRoute = CompleteProfileRouteImport.update({
   id: '/complete-profile',
   path: '/complete-profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BannedRoute = BannedRouteImport.update({
+  id: '/banned',
+  path: '/banned',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -213,12 +225,14 @@ const AuthenticatedChatsIdRoute = AuthenticatedChatsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/banned': typeof BannedRoute
   '/complete-profile': typeof CompleteProfileRoute
   '/feedback': typeof FeedbackRoute
   '/food': typeof FoodRoute
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/notes': typeof NotesRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/chats': typeof AuthenticatedChatsRoute
@@ -246,12 +260,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/banned': typeof BannedRoute
   '/complete-profile': typeof CompleteProfileRoute
   '/feedback': typeof FeedbackRoute
   '/food': typeof FoodRoute
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/notes': typeof NotesRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/chats': typeof AuthenticatedChatsRoute
@@ -281,12 +297,14 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/banned': typeof BannedRoute
   '/complete-profile': typeof CompleteProfileRoute
   '/feedback': typeof FeedbackRoute
   '/food': typeof FoodRoute
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/notes': typeof NotesRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/chats': typeof AuthenticatedChatsRoute
@@ -316,12 +334,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/banned'
     | '/complete-profile'
     | '/feedback'
     | '/food'
     | '/login'
     | '/marketplace'
     | '/notes'
+    | '/reset-password'
     | '/terms'
     | '/admin'
     | '/chats'
@@ -349,12 +369,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/banned'
     | '/complete-profile'
     | '/feedback'
     | '/food'
     | '/login'
     | '/marketplace'
     | '/notes'
+    | '/reset-password'
     | '/terms'
     | '/admin'
     | '/chats'
@@ -383,12 +405,14 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/banned'
     | '/complete-profile'
     | '/feedback'
     | '/food'
     | '/login'
     | '/marketplace'
     | '/notes'
+    | '/reset-password'
     | '/terms'
     | '/_authenticated/admin'
     | '/_authenticated/chats'
@@ -418,12 +442,14 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  BannedRoute: typeof BannedRoute
   CompleteProfileRoute: typeof CompleteProfileRoute
   FeedbackRoute: typeof FeedbackRoute
   FoodRoute: typeof FoodRoute
   LoginRoute: typeof LoginRoute
   MarketplaceRoute: typeof MarketplaceRoute
   NotesRoute: typeof NotesRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   TermsRoute: typeof TermsRoute
   FoodIdRoute: typeof FoodIdRoute
   NotesIdRoute: typeof NotesIdRoute
@@ -440,6 +466,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notes': {
@@ -482,6 +515,13 @@ declare module '@tanstack/react-router' {
       path: '/complete-profile'
       fullPath: '/complete-profile'
       preLoaderRoute: typeof CompleteProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/banned': {
+      id: '/banned'
+      path: '/banned'
+      fullPath: '/banned'
+      preLoaderRoute: typeof BannedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -710,12 +750,14 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  BannedRoute: BannedRoute,
   CompleteProfileRoute: CompleteProfileRoute,
   FeedbackRoute: FeedbackRoute,
   FoodRoute: FoodRoute,
   LoginRoute: LoginRoute,
   MarketplaceRoute: MarketplaceRoute,
   NotesRoute: NotesRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   TermsRoute: TermsRoute,
   FoodIdRoute: FoodIdRoute,
   NotesIdRoute: NotesIdRoute,

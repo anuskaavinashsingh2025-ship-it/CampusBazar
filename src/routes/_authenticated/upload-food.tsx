@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { ensureSellerProfile } from "@/lib/supabase-account";
+import { checkBanStatus } from "@/lib/ban-enforcement";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +47,21 @@ function UploadFoodPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, profile } = useAuth();
+
+  // Check ban status
+  useEffect(() => {
+    if (user) {
+      checkBanStatus(user.id).then((banStatus) => {
+        if (banStatus.isBanned) {
+          toast.error(banStatus.isPermanent 
+            ? "Your account has been permanently banned." 
+            : `Your account is banned until ${new Date(banStatus.bannedUntil!).toLocaleDateString()}.`
+          );
+          navigate({ to: "/banned" as any });
+        }
+      });
+    }
+  }, [user, navigate]);
 
   const [productName, setProductName] = useState("");
   const [brandName, setBrandName] = useState("");

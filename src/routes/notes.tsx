@@ -1,7 +1,20 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GraduationCap, Loader2, Search, Plus } from "lucide-react";
+import {
+  ArrowLeft,
+  GraduationCap,
+  Loader2,
+  Search,
+  Plus,
+  BookOpen,
+  FileText,
+  FlaskConical,
+  HelpCircle,
+  Layers,
+  Package,
+  Archive,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HubNavStrip } from "@/components/hub-nav-strip";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/notes")({
   head: () => ({
@@ -57,11 +71,21 @@ type NotesRequestRow = {
 const NOTES_LISTINGS_TABLE = "notes_listings" as unknown as keyof Database["public"]["Tables"];
 const NOTES_REQUESTS_TABLE = "notes_requests" as unknown as keyof Database["public"]["Tables"];
 
+const CATEGORY_OPTIONS = [
+  { key: "Handwritten Notes", icon: FileText, color: "bg-blue-100 text-blue-600" },
+  { key: "Previous Year Questions (PYQs)", icon: HelpCircle, color: "bg-purple-100 text-purple-600" },
+  { key: "Cheat Sheets", icon: Layers, color: "bg-orange-100 text-orange-600" },
+  { key: "Textbooks", icon: BookOpen, color: "bg-green-100 text-green-600" },
+  { key: "Lab Material", icon: FlaskConical, color: "bg-sky-100 text-sky-600" },
+  { key: "Exam Kits", icon: Package, color: "bg-amber-100 text-amber-600" },
+] as const;
+
 function NotesHubPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"sell" | "rent" | "requests">("sell");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   const { data: listings, isLoading: loadingListings } = useQuery({
     queryKey: ["notes", "listings"],
@@ -99,7 +123,13 @@ function NotesHubPage() {
 
   const filteredListings = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const base = (listings ?? []).filter((l) => l.listing_type === tab);
+    let base = (listings ?? []).filter((l) => l.listing_type === tab);
+    
+    // Apply category filter
+    if (categoryFilter !== "all") {
+      base = base.filter((l) => l.category === categoryFilter);
+    }
+    
     if (!q) return base;
     return base.filter((l) => {
       return (
@@ -109,7 +139,7 @@ function NotesHubPage() {
         (l.faculty ?? "").toLowerCase().includes(q)
       );
     });
-  }, [listings, query, tab]);
+  }, [listings, query, tab, categoryFilter]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -184,6 +214,45 @@ function NotesHubPage() {
 
       <main className="mx-auto max-w-6xl px-4 py-4">
         <HubNavStrip active="notes" className="mb-4" />
+
+        <section className="mb-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold">Browse Categories</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("all")}
+              className={cn(
+                "flex shrink-0 flex-col items-center gap-2 rounded-xl border p-3 text-xs",
+                categoryFilter === "all" ? "border-primary bg-primary/10" : "bg-card",
+              )}
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              All
+            </button>
+            {CATEGORY_OPTIONS.map((cat) => (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => setCategoryFilter(categoryFilter === cat.key ? "all" : cat.key)}
+                className={cn(
+                  "flex shrink-0 flex-col items-center gap-2 rounded-xl border p-3 text-xs",
+                  categoryFilter === cat.key ? "border-primary bg-primary/10" : "bg-card",
+                )}
+              >
+                <div
+                  className={cn("flex h-10 w-10 items-center justify-center rounded-lg", cat.color)}
+                >
+                  <cat.icon className="h-5 w-5" />
+                </div>
+                {cat.key.split(" ")[0]}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <div className="mb-3 grid grid-cols-3 gap-2">
           <Button variant="outline" onClick={() => openDetailsForm("sell")}>

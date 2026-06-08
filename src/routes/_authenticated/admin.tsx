@@ -13,6 +13,8 @@ import {
   FEEDBACK_CATEGORIES,
   type FeedbackStatus,
 } from "@/lib/feedback";
+import { ImagePreviewModal } from "@/components/admin/image-preview-modal";
+import { BanModal } from "@/components/admin/ban-modal";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +53,8 @@ type ReportRow = {
   status: "pending" | "resolved" | "dismissed";
   created_at: string;
   reporter_id: string;
+  evidence_urls: string[] | null;
+  evidence_count: number | null;
 };
 
 function AdminPortalPage() {
@@ -63,6 +67,13 @@ function AdminPortalPage() {
   const [feedbackRatingFilter, setFeedbackRatingFilter] = useState<string>("all");
   const [adminNotes, setAdminNotes] = useState("");
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
+  const [signedScreenshotUrls, setSignedScreenshotUrls] = useState<Record<string, string>>({});
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [banModalOpen, setBanModalOpen] = useState(false);
+  const [banTargetUserId, setBanTargetUserId] = useState<string | null>(null);
+  const [banTargetUserName, setBanTargetUserName] = useState<string | null>(null);
 
   const { data: allFeedback } = useAllFeedback();
   const updateFeedbackStatus = useUpdateFeedbackStatus();
@@ -73,6 +84,44 @@ function AdminPortalPage() {
       navigate({ to: "/dashboard" });
     }
   }, [loading, isAdmin, navigate]);
+
+  // Generate signed URLs for feedback screenshots
+  useEffect(() => {
+    const generateSignedUrls = async () => {
+      if (!allFeedback) return;
+
+      const urls: Record<string, string> = {};
+      
+      for (const feedback of allFeedback) {
+        if (feedback.screenshot_url) {
+          try {
+            // Extract path from screenshot_url
+            // URL format: https://[project].supabase.co/storage/v1/object/public/feedback-screenshots/[path]
+            const urlParts = feedback.screenshot_url.split('/feedback-screenshots/');
+            if (urlParts.length === 2) {
+              const path = urlParts[1];
+              const { data, error } = await supabase.storage
+                .from('feedback-screenshots')
+                .createSignedUrl(path, 3600); // 1 hour expiry
+              
+              if (data?.signedUrl) {
+                urls[feedback.id] = data.signedUrl;
+              }
+              if (error) {
+                console.error('[ADMIN] Error generating signed URL for feedback screenshot:', error);
+              }
+            }
+          } catch (err) {
+            console.error('[ADMIN] Exception generating signed URL:', err);
+          }
+        }
+      }
+      
+      setSignedScreenshotUrls(urls);
+    };
+
+    generateSignedUrls();
+  }, [allFeedback]);
 
   const { data: analytics } = useQuery({
     queryKey: ["admin", "analytics"],
@@ -294,6 +343,29 @@ function AdminPortalPage() {
                 </div>
                 {r.details && <div className="mt-2 text-sm text-muted-foreground">{r.details}</div>}
 
+                {r.evidence_urls && r.evidence_urls.length > 0 && (
+                  <div className="mt-3">
+                    <div className="mb-2 text-xs font-medium text-muted-foreground">
+                      Evidence ({r.evidence_count})
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {r.evidence_urls.map((url, index) => (
+                        <img
+                          key={index}
+                          src={url}
+                          alt={`Evidence ${index + 1}`}
+                          className="h-16 w-16 cursor-pointer rounded-md object-cover hover:opacity-80"
+                          onClick={() => {
+                            setPreviewImages(r.evidence_urls!);
+                            setPreviewIndex(index);
+                            setPreviewOpen(true);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => updateReportStatus(r.id, "resolved")}>
                     Resolve
@@ -330,7 +402,11 @@ function AdminPortalPage() {
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => setUserStatus(r.seller_user_id!, "banned", "ban_user")}
+                        onClick={() => {
+                          setBanTargetUserId(r.seller_user_id!);
+                          setBanTargetUserName(null);
+                          setBanModalOpen(true);
+                        }}
                       >
                         Ban User
                       </Button>
@@ -440,7 +516,7 @@ function AdminPortalPage() {
 
                       {feedback.screenshot_url && (
                         <img
-                          src={feedback.screenshot_url}
+                          src={signedScreenshotUrls[feedback.id] || feedback.screenshot_url}
                           alt="Screenshot"
                           className="mt-2 h-24 w-24 rounded border border-gray-300 object-cover"
                         />
@@ -508,6 +584,20 @@ function AdminPortalPage() {
           )}
         </CardContent>
       </Card>
+
+      <ImagePreviewModal
+        images={previewImages}
+        initialIndex={previewIndex}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+      />
+
+      <BanModal
+        open={banModalOpen}
+        onOpenChange={setBanModalOpen}
+        targetUserId={banTargetUserId ?? ""}
+        targetUserName={banTargetUserName ?? undefined}
+      />
     </div>
   );
 }

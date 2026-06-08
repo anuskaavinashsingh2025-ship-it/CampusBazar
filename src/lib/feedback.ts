@@ -123,18 +123,52 @@ export async function deleteFeedback(feedbackId: string): Promise<void> {
 }
 
 export async function uploadFeedbackScreenshot(userId: string, file: File): Promise<string> {
+  const bucketName = "feedback-screenshots";
+  console.log("[FEEDBACK SCREENSHOT UPLOAD] === START ===");
+  console.log("[FEEDBACK SCREENSHOT UPLOAD] Bucket name:", bucketName);
+  console.log("[FEEDBACK SCREENSHOT UPLOAD] User ID:", userId);
+  console.log("[FEEDBACK SCREENSHOT UPLOAD] File name:", file.name);
+  console.log("[FEEDBACK SCREENSHOT UPLOAD] File size:", file.size);
+  console.log("[FEEDBACK SCREENSHOT UPLOAD] File type:", file.type);
+
   const fileExt = file.name.split(".").pop();
   const fileName = `${userId}/${Date.now()}.${fileExt}`;
-  const { data, error } = await supabase.storage
-    .from("feedback-screenshots")
-    .upload(fileName, file, {
-      upsert: false,
-    });
-  if (error) throw error;
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("feedback-screenshots").getPublicUrl(data.path);
-  return publicUrl;
+  console.log("[FEEDBACK SCREENSHOT UPLOAD] Storage path:", fileName);
+
+  try {
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, file, {
+        upsert: false,
+      });
+
+    console.log("[FEEDBACK SCREENSHOT UPLOAD] Upload result:", data);
+    console.log("[FEEDBACK SCREENSHOT UPLOAD] Upload error:", error);
+
+    if (error) {
+      console.error("[FEEDBACK SCREENSHOT UPLOAD] ERROR DETAILS:", {
+        message: error.message,
+        name: error.name,
+        statusCode: error.statusCode,
+      });
+      throw error;
+    }
+
+    if (!data || !data.path) {
+      console.error("[FEEDBACK SCREENSHOT UPLOAD] No data or path returned from upload");
+      throw new Error("Upload failed: No data returned from Supabase");
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from(bucketName).getPublicUrl(data.path);
+    console.log("[FEEDBACK SCREENSHOT UPLOAD] Public URL:", publicUrl);
+    console.log("[FEEDBACK SCREENSHOT UPLOAD] === SUCCESS ===");
+    return publicUrl;
+  } catch (err) {
+    console.error("[FEEDBACK SCREENSHOT UPLOAD] CATCH ERROR:", err);
+    throw err;
+  }
 }
 
 export function useUserFeedback() {

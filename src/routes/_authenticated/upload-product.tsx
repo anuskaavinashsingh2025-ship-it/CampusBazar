@@ -26,6 +26,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { ensureSellerProfile } from "@/lib/supabase-account";
+import { checkBanStatus } from "@/lib/ban-enforcement";
 import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +95,21 @@ function UploadProductPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, profile } = useAuth();
+
+  // Check ban status
+  useEffect(() => {
+    if (user) {
+      checkBanStatus(user.id).then((banStatus) => {
+        if (banStatus.isBanned) {
+          toast.error(banStatus.isPermanent 
+            ? "Your account has been permanently banned." 
+            : `Your account is banned until ${new Date(banStatus.bannedUntil!).toLocaleDateString()}.`
+          );
+          navigate({ to: "/banned" as any });
+        }
+      });
+    }
+  }, [user, navigate]);
 
   const sellerDisplayName = useMemo(() => {
     if (profile?.full_name?.trim()) return profile.full_name.trim();

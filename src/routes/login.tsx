@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { GraduationCap, Loader2, X } from "lucide-react";
+import { GraduationCap, Loader2, X, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +59,11 @@ function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [savedLogins, setSavedLogins] = useState<SavedLogin[]>([]);
+  const [passwordSetupLoading, setPasswordSetupLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
 
   useEffect(() => {
     setSavedLogins(getSavedLogins());
@@ -167,6 +172,72 @@ function LoginPage() {
     setSavedLogins(getSavedLogins());
   };
 
+  const handlePasswordSetup = async (email: string) => {
+    setPasswordSetupLoading(true);
+    console.log("[PasswordSetup] Initiating password setup for:", email);
+
+    try {
+      const redirectTo = `${window.location.origin}/reset-password`;
+      console.log("[PasswordSetup] Redirect URL:", redirectTo);
+
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+
+      console.log("[PasswordSetup] resetPasswordForEmail response:", data);
+      console.log("[PasswordSetup] resetPasswordForEmail error:", error);
+
+      if (error) {
+        console.error("[PasswordSetup] Error sending password reset email:", error);
+        throw error;
+      }
+
+      console.log("[PasswordSetup] Password reset email sent successfully");
+      toast.success("Password setup email sent! Check your inbox.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send password setup email";
+      console.error("[PasswordSetup] Error:", err);
+      toast.error(message);
+    } finally {
+      setPasswordSetupLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setForgotPasswordLoading(true);
+    console.log("[ForgotPassword] Initiating password reset for:", forgotPasswordEmail);
+
+    try {
+      const redirectTo = `${window.location.origin}/reset-password`;
+      console.log("[ForgotPassword] Redirect URL:", redirectTo);
+
+      const { data, error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+        redirectTo,
+      });
+
+      console.log("[ForgotPassword] resetPasswordForEmail response:", data);
+      console.log("[ForgotPassword] resetPasswordForEmail error:", error);
+
+      if (error) {
+        console.error("[ForgotPassword] Error sending password reset email:", error);
+        throw error;
+      }
+
+      console.log("[ForgotPassword] Password reset email sent successfully");
+      toast.success("Password reset email sent! Check your inbox.");
+      setForgotPasswordMode(false);
+      setForgotPasswordEmail("");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send password reset email";
+      console.error("[ForgotPassword] Error:", err);
+      toast.error(message);
+    } finally {
+      setForgotPasswordLoading(false);
+    }
+  };
+
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-secondary via-background to-accent/40 px-4 py-12">
       <div className="w-full max-w-md">
@@ -221,6 +292,31 @@ function LoginPage() {
                   </button>
                 </div>
               ))}
+              {savedLogins.some((l) => l.provider === "google") && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-center">
+                  <p className="mb-2 text-sm font-medium text-primary">
+                    Signed up with Google? Set up a password
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      const googleLogin = savedLogins.find((l) => l.provider === "google");
+                      if (googleLogin) {
+                        handlePasswordSetup(googleLogin.email);
+                      }
+                    }}
+                    disabled={passwordSetupLoading}
+                  >
+                    {passwordSetupLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Set up password
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -228,25 +324,60 @@ function LoginPage() {
         <Card className="border-border/60 shadow-lg">
           <CardHeader className="space-y-1 text-center">
             <CardTitle className="text-2xl">
-              {mode === "signin" ? "Welcome back" : "Create your account"}
+              {forgotPasswordMode ? "Reset Password" : mode === "signin" ? "Welcome back" : "Create your account"}
             </CardTitle>
-            <CardDescription>Use your VIT student email (@vitstudent.ac.in)</CardDescription>
+            <CardDescription>
+              {forgotPasswordMode
+                ? "Enter your email to receive a password reset link"
+                : "Use your VIT student email (@vitstudent.ac.in)"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full gap-2"
-              onClick={() => handleGoogle()}
-              disabled={googleLoading || submitting}
-            >
-              {googleLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <GoogleIcon className="h-5 w-5" />
-              )}
-              Continue with Google
-            </Button>
+            {forgotPasswordMode ? (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="forgotEmail">Email</Label>
+                  <Input
+                    id="forgotEmail"
+                    type="email"
+                    value={forgotPasswordEmail}
+                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                    placeholder="you@vitstudent.ac.in"
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={forgotPasswordLoading}>
+                  {forgotPasswordLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Send Reset Link
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setForgotPasswordMode(false);
+                    setForgotPasswordEmail("");
+                  }}
+                >
+                  Back to Login
+                </Button>
+              </form>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => handleGoogle()}
+                  disabled={googleLoading || submitting}
+                >
+                  {googleLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <GoogleIcon className="h-5 w-5" />
+                  )}
+                  Continue with Google
+                </Button>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -289,15 +420,34 @@ function LoginPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    minLength={6}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      minLength={6}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {mode === "signin" && (
+                    <button
+                      type="button"
+                      onClick={() => setForgotPasswordMode(true)}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
                 </div>
 
                 {mode === "signin" && (
@@ -319,6 +469,8 @@ function LoginPage() {
                 </Button>
               </form>
             </Tabs>
+            </>
+            )}
           </CardContent>
         </Card>
       </div>

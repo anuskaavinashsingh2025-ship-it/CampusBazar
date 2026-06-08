@@ -163,7 +163,14 @@ export function ListingActions({
             <MoreHorizontal className="h-4 w-4" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent 
+          align="end" 
+          side="bottom"
+          sideOffset={8}
+          alignOffset={0}
+          collisionPadding={16}
+          avoidCollisions={true}
+        >
           {user?.id === ownerId ? (
             <DropdownMenuItem onSelect={() => onEdit?.()}>
               <Edit className="mr-2 h-4 w-4" /> Edit
