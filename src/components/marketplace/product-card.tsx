@@ -1,5 +1,4 @@
-import { Link } from "@tanstack/react-router";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import ListingActions from "@/components/listing/listing-actions";
 import { Badge } from "@/components/ui/badge";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
@@ -32,6 +31,8 @@ function formatInr(amount: number) {
 
 export function ProductCard({ product }: { product: ProductCardModel }) {
   const navigate = useNavigate();
+  const ownerId =
+    product.seller?.user_id ?? (product as unknown as { seller_id?: string }).seller_id ?? null;
   const categoryLabel =
     product.category === "Others" && product.custom_category
       ? product.custom_category
@@ -51,13 +52,14 @@ export function ProductCard({ product }: { product: ProductCardModel }) {
             onClick={(e) => e.stopPropagation()}
             role="presentation"
           >
+            {/* Robust ownerId resolution: some callers may not populate seller.user_id consistently */}
             <ListingActions
               itemType="product"
               itemId={product.id}
-              ownerId={product.seller.user_id}
+              ownerId={ownerId}
               onEdit={() => {
                 console.log("[ListingActions] onEdit product", product.id);
-                window.location.assign(`/upload-product?edit=${product.id}`);
+                navigate({ to: "/upload-product", search: { edit: product.id } as never });
               }}
             />
           </div>

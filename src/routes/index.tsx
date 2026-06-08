@@ -20,6 +20,7 @@ import { useAuth } from "@/lib/auth";
 import type { Database } from "@/integrations/supabase/types";
 
 import { CategoryStrip } from "@/components/category-strip";
+import ThemeToggle from "@/components/theme/theme-toggle";
 import { HubNavStrip } from "@/components/hub-nav-strip";
 import { RecentlyViewedSection } from "@/components/listing/recently-viewed-section";
 import { ProductCard, type ProductCardModel } from "@/components/marketplace/product-card";
