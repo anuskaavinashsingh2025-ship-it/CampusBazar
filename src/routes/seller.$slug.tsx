@@ -75,12 +75,15 @@ function SellerPage() {
   });
 
   const { data: products = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ["seller_products", seller?.user_id],
+    queryKey: ["seller_products", seller?.user_id, userProfile?.id],
     queryFn: async () => {
       if (!seller) return [];
+      // Ensure we prefer the latest avatar from profiles when building product seller info
       const { data: listings, error } = await supabase
         .from("product_listings" as unknown as keyof Database["public"]["Tables"])
-        .select("id,title,price,category,custom_category,condition,urgent_sale,status,seller_id,created_at")
+        .select(
+          "id,title,price,category,custom_category,condition,urgent_sale,status,seller_id,created_at",
+        )
         .eq("seller_id", seller.user_id)
         .eq("status", "available")
         .order("created_at", { ascending: false })
@@ -128,14 +131,15 @@ function SellerPage() {
             user_id: seller.user_id,
             slug: seller.slug,
             display_name: seller.display_name,
-            avatar_url: seller.avatar_url,
+            // Prefer the authoritative profile avatar when available
+            avatar_url: (userProfile?.avatar_url as string | null) ?? seller.avatar_url,
             rating_avg: Number(seller.rating_avg),
           },
           coverImageUrl: imageMap.get(p.id) ?? null,
         }),
       );
     },
-    enabled: Boolean(seller?.user_id),
+    enabled: Boolean(seller?.user_id && userProfile),
   });
 
   const { data: rentals = [], isLoading: loadingRentals } = useQuery({
@@ -223,7 +227,7 @@ function SellerPage() {
     queryKey: ["seller_metrics", seller?.user_id],
     queryFn: async () => {
       if (!seller) return null;
-      
+
       const [productSales, notesSales, foodSales, rentalCompletions, reviews] = await Promise.all([
         supabase
           .from("product_listings" as unknown as keyof Database["public"]["Tables"])
@@ -251,12 +255,17 @@ function SellerPage() {
           .eq("seller_user_id", seller.user_id),
       ]);
 
-      const totalSales = (productSales.data?.length ?? 0) + (notesSales.data?.length ?? 0) + (foodSales.data?.length ?? 0);
+      const totalSales =
+        (productSales.data?.length ?? 0) +
+        (notesSales.data?.length ?? 0) +
+        (foodSales.data?.length ?? 0);
       const rentalsCompleted = rentalCompletions.data?.length ?? 0;
       const reviewsReceived = reviews.data?.length ?? 0;
-      const averageRating = reviewsReceived > 0 
-        ? (reviews.data?.reduce((sum, r) => sum + (r as { rating: number }).rating, 0) ?? 0) / reviewsReceived
-        : 0;
+      const averageRating =
+        reviewsReceived > 0
+          ? (reviews.data?.reduce((sum: number, r: { rating: number }) => sum + r.rating, 0) ?? 0) /
+            reviewsReceived
+          : 0;
 
       return {
         totalSales,
@@ -287,7 +296,7 @@ function SellerPage() {
     queryKey: ["accepted_transaction_with_seller", user?.id, seller?.user_id],
     queryFn: async () => {
       if (!user || !seller) return false;
-      
+
       const [productRequests, rentalRequests, notesPurchases, foodOrders] = await Promise.all([
         supabase
           .from("product_requests" as unknown as keyof Database["public"]["Tables"])
@@ -387,8 +396,17 @@ function SellerPage() {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
                     <div className="relative -mt-12">
                       <Avatar className="h-24 w-24 border-4 border-card shadow-lg sm:h-28 sm:w-28">
-                        {seller.avatar_url && (
-                          <AvatarImage src={seller.avatar_url} alt={seller.display_name} />
+                        {(userProfile?.avatar_url ?? seller.avatar_url) && (
+                          <AvatarImage
+                            src={`${userProfile?.avatar_url ?? seller.avatar_url}${
+                              ((userProfile?.avatar_url ?? seller.avatar_url) as string).includes(
+                                "?",
+                              )
+                                ? "&"
+                                : "?"
+                            }t=${Date.now()}`}
+                            alt={seller.display_name}
+                          />
                         )}
                         <AvatarFallback className="bg-primary text-xl text-primary-foreground">
                           {seller.display_name.slice(0, 2).toUpperCase()}
@@ -410,7 +428,9 @@ function SellerPage() {
                         </p>
                       )}
                       {userProfile?.room_number && (
-                        <p className="text-sm text-muted-foreground">Room {userProfile.room_number}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Room {userProfile.room_number}
+                        </p>
                       )}
                       {userProfile?.phone_number && (
                         <p className="text-sm text-muted-foreground">{userProfile.phone_number}</p>
@@ -421,7 +441,9 @@ function SellerPage() {
                       <div className="mt-3 flex flex-wrap gap-4 text-sm">
                         <span className="flex items-center gap-1">
                           <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                          <strong>{(sellerMetrics?.averageRating ?? Number(seller.rating_avg)).toFixed(1)}</strong>
+                          <strong>
+                            {(sellerMetrics?.averageRating ?? Number(seller.rating_avg)).toFixed(1)}
+                          </strong>
                         </span>
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <Package className="h-4 w-4" />
@@ -448,9 +470,7 @@ function SellerPage() {
                     </Button>
                     {user?.id === seller.user_id && (
                       <Button variant="outline" asChild>
-                        <Link to="/seller-profile">
-                          Edit Profile
-                        </Link>
+                        <Link to="/seller-profile">Edit Profile</Link>
                       </Button>
                     )}
                     <Button
@@ -480,9 +500,15 @@ function SellerPage() {
                   {[
                     ["Total sales", sellerMetrics?.totalSales ?? seller.total_sold],
                     ["Active listings", products.length],
-                    ["Rentals completed", sellerMetrics?.rentalsCompleted ?? seller.total_rented_out],
+                    [
+                      "Rentals completed",
+                      sellerMetrics?.rentalsCompleted ?? seller.total_rented_out,
+                    ],
                     ["Reviews received", sellerMetrics?.reviewsReceived ?? seller.rating_count],
-                    ["Average rating", `${(sellerMetrics?.averageRating ?? Number(seller.rating_avg)).toFixed(1)} / 5`],
+                    [
+                      "Average rating",
+                      `${(sellerMetrics?.averageRating ?? Number(seller.rating_avg)).toFixed(1)} / 5`,
+                    ],
                   ].map(([label, value]) => (
                     <div key={String(label)} className="rounded-lg bg-muted/40 p-3">
                       <div className="text-xs text-muted-foreground">{label}</div>
@@ -497,9 +523,21 @@ function SellerPage() {
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-3">
                   {[
-                    { title: "Top Seller", sub: "High Performer", color: "bg-amber-100 text-amber-800" },
-                    { title: "Trusted Seller", sub: "Verified & Reliable", color: "bg-sky-100 text-sky-800" },
-                    { title: "Fast Responder", sub: "Quick Replies", color: "bg-emerald-100 text-emerald-800" },
+                    {
+                      title: "Top Seller",
+                      sub: "High Performer",
+                      color: "bg-amber-100 text-amber-800",
+                    },
+                    {
+                      title: "Trusted Seller",
+                      sub: "Verified & Reliable",
+                      color: "bg-sky-100 text-sky-800",
+                    },
+                    {
+                      title: "Fast Responder",
+                      sub: "Quick Replies",
+                      color: "bg-emerald-100 text-emerald-800",
+                    },
                     {
                       title: seller.total_sold >= 50 ? "50+ Sales" : "Rising Seller",
                       sub: "CampusBazar member",
@@ -519,8 +557,17 @@ function SellerPage() {
               <TabsList>
                 <TabsTrigger value="products">Products ({products.length})</TabsTrigger>
                 <TabsTrigger value="rentals">Rentals ({rentals.length})</TabsTrigger>
-                <TabsTrigger value="reviews">Reviews ({sellerMetrics?.reviewsReceived ?? seller.rating_count})</TabsTrigger>
-                <TabsTrigger value="completed">Completed ({soldProducts.length + completedRentals.length + completedNotes.length + completedFood.length})</TabsTrigger>
+                <TabsTrigger value="reviews">
+                  Reviews ({sellerMetrics?.reviewsReceived ?? seller.rating_count})
+                </TabsTrigger>
+                <TabsTrigger value="completed">
+                  Completed (
+                  {soldProducts.length +
+                    completedRentals.length +
+                    completedNotes.length +
+                    completedFood.length}
+                  )
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="products" className="mt-4">
@@ -530,7 +577,7 @@ function SellerPage() {
                   </div>
                 ) : products.length ? (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {products.map((p) => (
+                    {products.map((p: any) => (
                       <ProductCard key={p.id} product={p} />
                     ))}
                   </div>
@@ -550,21 +597,26 @@ function SellerPage() {
                   </div>
                 ) : rentals.length ? (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {(rentals as { id: string; title: string; rent_price_per_day: number; category: string }[]).map(
-                      (r) => (
-                        <Link key={r.id} to="/rent/$id" params={{ id: r.id }}>
-                          <Card className="transition-shadow hover:shadow-md">
-                            <CardContent className="p-4">
-                              <h3 className="font-semibold">{r.title}</h3>
-                              <p className="text-sm text-muted-foreground">{r.category}</p>
-                              <p className="mt-2 font-bold text-primary">
-                                {formatInr(Number(r.rent_price_per_day))}/day
-                              </p>
-                            </CardContent>
-                          </Card>
-                        </Link>
-                      ),
-                    )}
+                    {(
+                      rentals as {
+                        id: string;
+                        title: string;
+                        rent_price_per_day: number;
+                        category: string;
+                      }[]
+                    ).map((r) => (
+                      <Link key={r.id} to="/rent/$id" params={{ id: r.id }}>
+                        <Card className="transition-shadow hover:shadow-md">
+                          <CardContent className="p-4">
+                            <h3 className="font-semibold">{r.title}</h3>
+                            <p className="text-sm text-muted-foreground">{r.category}</p>
+                            <p className="mt-2 font-bold text-primary">
+                              {formatInr(Number(r.rent_price_per_day))}/day
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))}
                   </div>
                 ) : (
                   <Card className="border-dashed">
@@ -579,13 +631,16 @@ function SellerPage() {
                 <Card>
                   <CardContent className="py-8">
                     <div className="flex flex-col items-center gap-2 text-center">
-                      <div className="text-4xl font-bold">{(sellerMetrics?.averageRating ?? Number(seller.rating_avg)).toFixed(1)}</div>
+                      <div className="text-4xl font-bold">
+                        {(sellerMetrics?.averageRating ?? Number(seller.rating_avg)).toFixed(1)}
+                      </div>
                       <div className="flex gap-1">
                         {[1, 2, 3, 4, 5].map((i) => (
                           <Star
                             key={i}
                             className={`h-5 w-5 ${
-                              i <= Math.round(sellerMetrics?.averageRating ?? Number(seller.rating_avg))
+                              i <=
+                              Math.round(sellerMetrics?.averageRating ?? Number(seller.rating_avg))
                                 ? "fill-amber-400 text-amber-400"
                                 : "text-muted-foreground"
                             }`}
@@ -611,12 +666,22 @@ function SellerPage() {
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Products</h3>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {(soldProducts as { id: string; title: string; price: number; category: string; updated_at: string }[]).map((p) => (
+                        {(
+                          soldProducts as {
+                            id: string;
+                            title: string;
+                            price: number;
+                            category: string;
+                            updated_at: string;
+                          }[]
+                        ).map((p) => (
                           <Card key={p.id} className="opacity-75">
                             <CardContent className="p-4">
                               <h4 className="font-semibold">{p.title}</h4>
                               <p className="text-sm text-muted-foreground">{p.category}</p>
-                              <p className="mt-2 font-bold text-primary">{formatInr(Number(p.price))}</p>
+                              <p className="mt-2 font-bold text-primary">
+                                {formatInr(Number(p.price))}
+                              </p>
                               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                                 <Badge variant="outline">Completed</Badge>
                                 <span>{new Date(p.updated_at).toLocaleDateString()}</span>
@@ -631,12 +696,22 @@ function SellerPage() {
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Rentals</h3>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {(completedRentals as { id: string; title: string; rent_price_per_day: number; category: string; updated_at: string }[]).map((r) => (
+                        {(
+                          completedRentals as {
+                            id: string;
+                            title: string;
+                            rent_price_per_day: number;
+                            category: string;
+                            updated_at: string;
+                          }[]
+                        ).map((r) => (
                           <Card key={r.id} className="opacity-75">
                             <CardContent className="p-4">
                               <h4 className="font-semibold">{r.title}</h4>
                               <p className="text-sm text-muted-foreground">{r.category}</p>
-                              <p className="mt-2 font-bold text-primary">{formatInr(Number(r.rent_price_per_day))}/day</p>
+                              <p className="mt-2 font-bold text-primary">
+                                {formatInr(Number(r.rent_price_per_day))}/day
+                              </p>
                               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                                 <Badge variant="outline">Completed</Badge>
                                 <span>{new Date(r.updated_at).toLocaleDateString()}</span>
@@ -651,12 +726,22 @@ function SellerPage() {
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Notes</h3>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {(completedNotes as { id: string; title: string; price: number; category: string; updated_at: string }[]).map((n) => (
+                        {(
+                          completedNotes as {
+                            id: string;
+                            title: string;
+                            price: number;
+                            category: string;
+                            updated_at: string;
+                          }[]
+                        ).map((n) => (
                           <Card key={n.id} className="opacity-75">
                             <CardContent className="p-4">
                               <h4 className="font-semibold">{n.title}</h4>
                               <p className="text-sm text-muted-foreground">{n.category}</p>
-                              <p className="mt-2 font-bold text-primary">{formatInr(Number(n.price))}</p>
+                              <p className="mt-2 font-bold text-primary">
+                                {formatInr(Number(n.price))}
+                              </p>
                               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                                 <Badge variant="outline">Completed</Badge>
                                 <span>{new Date(n.updated_at).toLocaleDateString()}</span>
@@ -671,12 +756,22 @@ function SellerPage() {
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Food</h3>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {(completedFood as { id: string; title: string; price: number; category: string; updated_at: string }[]).map((f) => (
+                        {(
+                          completedFood as {
+                            id: string;
+                            title: string;
+                            price: number;
+                            category: string;
+                            updated_at: string;
+                          }[]
+                        ).map((f) => (
                           <Card key={f.id} className="opacity-75">
                             <CardContent className="p-4">
                               <h4 className="font-semibold">{f.title}</h4>
                               <p className="text-sm text-muted-foreground">{f.category}</p>
-                              <p className="mt-2 font-bold text-primary">{formatInr(Number(f.price))}</p>
+                              <p className="mt-2 font-bold text-primary">
+                                {formatInr(Number(f.price))}
+                              </p>
                               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                                 <Badge variant="outline">Completed</Badge>
                                 <span>{new Date(f.updated_at).toLocaleDateString()}</span>
@@ -687,13 +782,16 @@ function SellerPage() {
                       </div>
                     </div>
                   )}
-                  {soldProducts.length === 0 && completedRentals.length === 0 && completedNotes.length === 0 && completedFood.length === 0 && (
-                    <Card className="border-dashed">
-                      <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                        No completed items yet.
-                      </CardContent>
-                    </Card>
-                  )}
+                  {soldProducts.length === 0 &&
+                    completedRentals.length === 0 &&
+                    completedNotes.length === 0 &&
+                    completedFood.length === 0 && (
+                      <Card className="border-dashed">
+                        <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                          No completed items yet.
+                        </CardContent>
+                      </Card>
+                    )}
                 </div>
               </TabsContent>
             </Tabs>

@@ -170,9 +170,7 @@ function RentDetailsPage() {
     [images],
   );
 
-  const priceLabel = rental
-    ? `${formatInr(Number(rental.rent_price_per_day))} / day`
-    : "";
+  const priceLabel = rental ? `${formatInr(Number(rental.rent_price_per_day))} / day` : "";
 
   useTrackListingView(
     "rental",
@@ -200,7 +198,12 @@ function RentDetailsPage() {
       <div className="min-h-screen bg-background">
         <header className="border-b bg-card/90 backdrop-blur">
           <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
-            <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate({ to: "/rent" })}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back"
+              onClick={() => navigate({ to: "/rent" })}
+            >
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </div>
@@ -289,7 +292,7 @@ function RentDetailsPage() {
           pickupLocation: pickupLocation.trim(),
           message: requestMessage,
         },
-        buyerName: user.user_metadata?.full_name || user.email?.split('@')[0] || "Buyer",
+        buyerName: user.user_metadata?.full_name || user.email?.split("@")[0] || "Buyer",
         buyerHostel: user.user_metadata?.hostel_block || null,
       },
       { onSuccess: () => setRequestOpen(false) },
@@ -300,7 +303,12 @@ function RentDetailsPage() {
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate({ to: "/rent" })}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Back"
+            onClick={() => navigate({ to: "/rent" })}
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Link to="/" className="flex items-center gap-2">
@@ -426,8 +434,9 @@ function RentDetailsPage() {
               )}
               {estimatedTotal && (
                 <p className="text-sm text-muted-foreground">
-                  Estimated total: <span className="font-semibold text-primary">{estimatedTotal}</span>{" "}
-                  ({priceLabel})
+                  Estimated total:{" "}
+                  <span className="font-semibold text-primary">{estimatedTotal}</span> ({priceLabel}
+                  )
                 </p>
               )}
             </div>

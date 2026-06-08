@@ -140,7 +140,10 @@ export function useUpdateFoodOrder() {
       notificationTitle?: string;
       notificationDescription?: string;
     }): Promise<ChatMutationResult> => {
-      console.log("[useUpdateFoodOrder] Called with:", { orderId: input.orderId, status: input.status });
+      console.log("[useUpdateFoodOrder] Called with:", {
+        orderId: input.orderId,
+        status: input.status,
+      });
       let conversationId: string | undefined;
       const { error } = await supabase
         .from(ORDERS_TABLE)
@@ -164,7 +167,10 @@ export function useUpdateFoodOrder() {
             metadata: { orderId: input.orderId },
           });
         } catch (notifErr) {
-          console.error("[useUpdateFoodOrder] Notification creation failed (non-blocking):", notifErr);
+          console.error(
+            "[useUpdateFoodOrder] Notification creation failed (non-blocking):",
+            notifErr,
+          );
         }
       }
 

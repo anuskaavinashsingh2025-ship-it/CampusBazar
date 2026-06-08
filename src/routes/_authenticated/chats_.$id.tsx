@@ -95,8 +95,7 @@ function ChatThreadPage() {
     );
   }
 
-  const canSend =
-    conversation.status === "active" || conversation.status === "reported";
+  const canSend = conversation.status === "active" || conversation.status === "reported";
   const isCompleted = conversation.status === "completed";
 
   return (

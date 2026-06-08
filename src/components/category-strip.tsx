@@ -21,26 +21,83 @@ export const BROWSE_CATEGORIES: Array<{
   color: string;
   to?: string;
 }> = [
-  { key: "Food", label: "Food", icon: UtensilsCrossed, color: "bg-orange-100 text-orange-600", to: "/food" },
+  {
+    key: "Food",
+    label: "Food",
+    icon: UtensilsCrossed,
+    color: "bg-orange-100 text-orange-600",
+    to: "/food",
+  },
   { key: "Rent", label: "Rent", icon: Bike, color: "bg-blue-100 text-blue-600", to: "/rent" },
   { key: "Notes", label: "Notes", icon: FileText, color: "bg-sky-100 text-sky-600", to: "/notes" },
-  { key: "Books", label: "Books", icon: BookOpen, color: "bg-amber-100 text-amber-700", to: "/marketplace" },
-  { key: "Electronics", label: "Electronics", icon: Laptop, color: "bg-indigo-100 text-indigo-600", to: "/marketplace" },
-  { key: "Furniture", label: "Furniture", icon: Sofa, color: "bg-stone-100 text-stone-600" },
-  { key: "Clothes", label: "Clothes", icon: Shirt, color: "bg-pink-100 text-pink-600" },
-  { key: "More", label: "More", icon: MoreHorizontal, color: "bg-gray-100 text-gray-600" },
+  {
+    key: "Books",
+    label: "Books",
+    icon: BookOpen,
+    color: "bg-amber-100 text-amber-700",
+    to: "/marketplace",
+  },
+  {
+    key: "Electronics",
+    label: "Electronics",
+    icon: Laptop,
+    color: "bg-indigo-100 text-indigo-600",
+    to: "/marketplace",
+  },
+  {
+    key: "Furniture",
+    label: "Furniture",
+    icon: Sofa,
+    color: "bg-stone-100 text-stone-600",
+    to: "/marketplace",
+  },
+  {
+    key: "Clothes",
+    label: "Clothes",
+    icon: Shirt,
+    color: "bg-pink-100 text-pink-600",
+    to: "/marketplace",
+  },
+  {
+    key: "Other",
+    label: "More",
+    icon: MoreHorizontal,
+    color: "bg-gray-100 text-gray-600",
+    to: "/marketplace",
+  },
 ];
 
 type CategoryStripProps = {
   className?: string;
   onViewAll?: () => void;
+  onCategorySelect?: (key: string) => void;
+  activeKey?: string | null;
 };
 
-export function CategoryStrip({ className, onViewAll }: CategoryStripProps) {
+export function CategoryStrip({
+  className,
+  onViewAll,
+  onCategorySelect,
+  activeKey,
+}: CategoryStripProps) {
   const navigate = useNavigate();
+  const handleSelect = (key?: string) => {
+    if (onCategorySelect && key) onCategorySelect(key);
+  };
 
   const handleClick = (cat: (typeof BROWSE_CATEGORIES)[number]) => {
+    // Notify parent about selection (for homepage filtering)
+    handleSelect(cat.key);
+
     if (cat.to) {
+      // If navigating to the marketplace, include the category as a search param so the
+      // marketplace page can show a filtered view.
+      if (cat.to === "/marketplace") {
+        // navigate supports a search object; cast as never to match existing code patterns
+        // and avoid typing noise.
+        void navigate({ to: "/marketplace", search: { category: cat.key } as never });
+        return;
+      }
       navigate({ to: cat.to });
       return;
     }
@@ -56,7 +113,12 @@ export function CategoryStrip({ className, onViewAll }: CategoryStripProps) {
           key={cat.key}
           type="button"
           onClick={() => handleClick(cat)}
-          className="min-w-[80px] shrink-0 rounded-xl border bg-card px-3 py-3 text-center text-xs shadow-sm transition-shadow hover:shadow-md"
+          className={cn(
+            "min-w-[80px] shrink-0 rounded-xl border px-3 py-3 text-center text-xs shadow-sm transition-shadow hover:shadow-md",
+            activeKey === cat.key
+              ? "border-primary bg-primary/10 text-primary"
+              : "bg-card text-muted-foreground",
+          )}
         >
           <div
             className={cn(

@@ -104,7 +104,9 @@ export function useCreateNotesPurchase() {
         .single();
       if (error) throw error;
 
-      const buyerDetails = input.buyerName ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}` : "";
+      const buyerDetails = input.buyerName
+        ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}`
+        : "";
       await createNotification({
         userId: input.sellerId,
         title: "Notes Purchase Request",
@@ -140,7 +142,10 @@ export function useUpdateNotesPurchase() {
       notificationTitle?: string;
       notificationDescription?: string;
     }): Promise<ChatMutationResult> => {
-      console.log("[useUpdateNotesPurchase] Called with:", { requestId: input.requestId, status: input.status });
+      console.log("[useUpdateNotesPurchase] Called with:", {
+        requestId: input.requestId,
+        status: input.status,
+      });
       let conversationId: string | undefined;
       const { error } = await supabase
         .from(REQUESTS_TABLE)
@@ -164,7 +169,10 @@ export function useUpdateNotesPurchase() {
             metadata: { requestId: input.requestId },
           });
         } catch (notifErr) {
-          console.error("[useUpdateNotesPurchase] Notification creation failed (non-blocking):", notifErr);
+          console.error(
+            "[useUpdateNotesPurchase] Notification creation failed (non-blocking):",
+            notifErr,
+          );
         }
       }
 

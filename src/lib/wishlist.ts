@@ -136,10 +136,7 @@ export function useWishlistToggle(userId: string | null | undefined) {
   });
 }
 
-export function useIsWishlisted(
-  userId: string | null | undefined,
-  listingId: string,
-) {
+export function useIsWishlisted(userId: string | null | undefined, listingId: string) {
   const { data: rows = [] } = useWishlist(userId);
   return rows.some((r) => r.listing_id === listingId);
 }

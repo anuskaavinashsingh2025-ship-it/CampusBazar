@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
+import ListingActions from "@/components/listing/listing-actions";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,13 +126,9 @@ function FoodHubPage() {
         }
       }
 
-      const sellerMap = new Map(
-        (sellers ?? []).map(
-          (s: { user_id: string; slug: string; display_name: string; avatar_url: string | null }) => [
-            s.user_id,
-            { display_name: s.display_name, avatar_url: s.avatar_url, slug: s.slug },
-          ],
-        ),
+      type SellerRefLocal = { display_name: string; avatar_url: string | null; slug: string };
+      const sellerMap = new Map<string, SellerRefLocal>(
+        (sellers ?? []).map((s: SellerRefLocal & { user_id: string }) => [s.user_id, { display_name: s.display_name, avatar_url: s.avatar_url, slug: s.slug }]),
       );
 
       return rows.map((r) => ({
@@ -191,10 +188,8 @@ function FoodHubPage() {
     const today = new Date();
     const expiry = new Date(expiryDate);
     const diff = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (diff > 60)
-      return { label: `${diff} days left`, className: "bg-emerald-500 text-white" };
-    if (diff >= 30)
-      return { label: `${diff} days left`, className: "bg-yellow-500 text-white" };
+    if (diff > 60) return { label: `${diff} days left`, className: "bg-emerald-500 text-white" };
+    if (diff >= 30) return { label: `${diff} days left`, className: "bg-yellow-500 text-white" };
     return { label: `${Math.max(diff, 0)} days left`, className: "bg-red-500 text-white" };
   };
 
@@ -226,7 +221,12 @@ function FoodHubPage() {
     <div className="min-h-screen bg-gradient-to-b from-sky-50/50 to-background pb-24">
       <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3">
-          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate({ to: "/" })}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Back"
+            onClick={() => navigate({ to: "/" })}
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Link to="/" className="flex items-center gap-2">
@@ -249,28 +249,28 @@ function FoodHubPage() {
               <Heart className="h-5 w-5" />
             </Button>
             <div className="flex rounded-full border bg-muted/40 p-0.5">
-            <button
-              type="button"
-              onClick={() => setMode("sell")}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
-                mode === "sell" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground",
-              )}
-            >
-              Sell
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("requests")}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
-                mode === "requests"
-                  ? "bg-sky-600 text-white shadow-sm"
-                  : "text-muted-foreground",
-              )}
-            >
-              Requests
-            </button>
+              <button
+                type="button"
+                onClick={() => setMode("sell")}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                  mode === "sell"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground",
+                )}
+              >
+                Sell
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("requests")}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                  mode === "requests" ? "bg-sky-600 text-white shadow-sm" : "text-muted-foreground",
+                )}
+              >
+                Requests
+              </button>
             </div>
           </div>
         </div>
@@ -362,13 +362,28 @@ function FoodHubPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <h3 className="line-clamp-2 text-sm font-semibold">{l.product_name}</h3>
+                              <h3 className="line-clamp-2 text-sm font-semibold">
+                                {l.product_name}
+                              </h3>
                               <p className="text-xs text-muted-foreground">
                                 {l.brand_name} · {l.quantity}
                               </p>
                             </div>
                             <div onClick={(e) => e.stopPropagation()} role="presentation">
                               <WishlistButton listingId={l.id} />
+                            </div>
+                            {/* Listing actions placeholder */}
+                            <div
+                              className="absolute right-2 top-2 z-20"
+                              onClick={(e) => e.stopPropagation()}
+                              role="presentation"
+                            >
+                              <ListingActions
+                                itemType="food"
+                                itemId={l.id}
+                                ownerId={l.seller_id}
+                                onEdit={() => window.location.assign(`/upload-food?edit=${l.id}`)}
+                              />
                             </div>
                           </div>
                           <p className="mt-1 text-base font-bold text-sky-700">
@@ -378,7 +393,10 @@ function FoodHubPage() {
                             <div className="flex items-center gap-2">
                               <Avatar className="h-6 w-6">
                                 {l.seller?.avatar_url ? (
-                                  <AvatarImage src={l.seller.avatar_url} alt="" />
+                                  <AvatarImage
+                                    src={`${l.seller.avatar_url}${(l.seller.avatar_url as string).includes("?") ? "&" : "?"}t=${Date.now()}`}
+                                    alt=""
+                                  />
                                 ) : null}
                                 <AvatarFallback className="text-[9px]">
                                   {(l.seller?.display_name ?? "S").slice(0, 2).toUpperCase()}
@@ -461,7 +479,11 @@ function FoodHubPage() {
                         >
                           I Have This
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => toast.message("Chat coming soon")}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => toast.message("Chat coming soon")}
+                        >
                           <MessageSquare className="h-4 w-4" />
                         </Button>
                       </div>

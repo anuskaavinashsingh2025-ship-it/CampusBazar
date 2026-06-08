@@ -8,6 +8,7 @@ import {
   User,
   Menu,
   Search,
+  Bike,
   Plus,
   Home,
   Grid2X2,
@@ -119,16 +120,9 @@ function MarketplaceHome() {
         .select("user_id,slug,display_name,avatar_url")
         .in("user_id", sellerIds);
 
-      const sellerMap = new Map(
-        (sellers ?? []).map((s) => [
-          s.user_id,
-          {
-            user_id: s.user_id,
-            slug: s.slug,
-            display_name: s.display_name,
-            avatar_url: s.avatar_url,
-          },
-        ]),
+      type SellerRefLocal = { user_id: string; slug: string; display_name: string; avatar_url: string | null };
+      const sellerMap = new Map<string, SellerRefLocal>(
+        (sellers ?? []).map((s: SellerRefLocal) => [s.user_id, s]),
       );
 
       const productIds = productRows.map((p) => p.id);
@@ -174,6 +168,225 @@ function MarketplaceHome() {
     refetchInterval: 5000,
   });
 
+  // Selected category for homepage category strip (affects Fresh recommendations)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const { data: foodRecs = [], isLoading: loadingFood } = useQuery({
+    queryKey: ["marketplace_home", "recommendations", "food"],
+    queryFn: async () => {
+      // re-use the food listing logic but limited
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("food_listings")
+        .select("id,product_name,brand_name,category,price,expiry_date,status,seller_id,created_at")
+        .eq("status", "available")
+        .gte("expiry_date", today)
+        .order("created_at", { ascending: false })
+        .limit(24);
+      if (error) throw error;
+      const rows = (data ?? []) as any[];
+      if (!rows.length) return [];
+
+      const ids = rows.map((r) => r.id);
+      const sellerIds = [...new Set(rows.map((r) => r.seller_id))];
+      const [{ data: images }, { data: sellers }] = await Promise.all([
+        ids.length
+          ? supabase
+              .from("food_images")
+              .select("food_listing_id,storage_path,sort_index")
+              .in("food_listing_id", ids)
+          : Promise.resolve({ data: [] }),
+        sellerIds.length
+          ? supabase
+              .from("seller_profiles")
+              .select("user_id,slug,display_name,avatar_url")
+              .in("user_id", sellerIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { food_listing_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.food_listing_id)) {
+          imageMap.set(
+            row.food_listing_id,
+            supabase.storage.from("food-images").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
+      }
+
+      const sellerMap = new Map(
+        (sellers ?? []).map((s: any) => [s.user_id, { user_id: s.user_id, slug: s.slug, display_name: s.display_name, avatar_url: s.avatar_url }]),
+      );
+
+      return rows.map((r) => ({
+        id: r.id,
+        title: r.product_name,
+        price: Number(r.price),
+        category: r.category,
+        custom_category: null,
+        condition: "",
+        urgent_sale: false,
+        seller: sellerMap.get(r.seller_id) ?? {
+          user_id: r.seller_id,
+          slug: "",
+          display_name: "Seller",
+          avatar_url: null,
+        },
+        coverImageUrl: imageMap.get(r.id) ?? null,
+      }));
+    },
+    refetchInterval: 10000,
+  });
+
+  const { data: rentalRecs = [], isLoading: loadingRentals } = useQuery({
+    queryKey: ["marketplace_home", "recommendations", "rentals"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rental_listings")
+        .select(
+          "id,title,rent_price_per_day,category,custom_category,condition,status,seller_id,created_at",
+        )
+        .eq("status", "available")
+        .order("created_at", { ascending: false })
+        .limit(24);
+      if (error) throw error;
+      const rows = (data ?? []) as any[];
+      if (!rows.length) return [];
+
+      const ids = rows.map((r) => r.id);
+      const sellerIds = [...new Set(rows.map((r) => r.seller_id))];
+      const [{ data: images }, { data: sellers }] = await Promise.all([
+        ids.length
+          ? supabase
+              .from("rental_images")
+              .select("rental_id,storage_path,sort_index")
+              .in("rental_id", ids)
+          : Promise.resolve({ data: [] }),
+        sellerIds.length
+          ? supabase
+              .from("seller_profiles")
+              .select("user_id,slug,display_name,avatar_url")
+              .in("user_id", sellerIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { rental_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.rental_id)) {
+          imageMap.set(
+            row.rental_id,
+            supabase.storage.from("rental-images").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
+      }
+
+      const sellerMap = new Map(
+        (sellers ?? []).map((s: any) => [
+          s.user_id,
+          {
+            user_id: s.user_id,
+            slug: s.slug,
+            display_name: s.display_name,
+            avatar_url: s.avatar_url,
+          },
+        ]),
+      );
+
+      return rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        price: Number(r.rent_price_per_day),
+        category: r.category,
+        custom_category: r.custom_category,
+        condition: r.condition,
+        urgent_sale: false,
+        seller: sellerMap.get(r.seller_id) ?? {
+          user_id: r.seller_id,
+          slug: "",
+          display_name: "Seller",
+          avatar_url: null,
+        },
+        coverImageUrl: imageMap.get(r.id) ?? null,
+      }));
+    },
+    refetchInterval: 10000,
+  });
+
+  const { data: notesRecs = [], isLoading: loadingNotes } = useQuery({
+    queryKey: ["marketplace_home", "recommendations", "notes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notes_listings")
+        .select("id,title,price,category,custom_category,status,seller_id,created_at")
+        .eq("status", "available")
+        .order("created_at", { ascending: false })
+        .limit(24);
+      if (error) throw error;
+      const rows = (data ?? []) as any[];
+      if (!rows.length) return [];
+
+      const ids = rows.map((r) => r.id);
+      const sellerIds = [...new Set(rows.map((r) => r.seller_id))];
+      const [{ data: images }, { data: sellers }] = await Promise.all([
+        ids.length
+          ? supabase
+              .from("notes_images")
+              .select("note_id,storage_path,sort_index")
+              .in("note_id", ids)
+          : Promise.resolve({ data: [] }),
+        sellerIds.length
+          ? supabase
+              .from("seller_profiles")
+              .select("user_id,slug,display_name,avatar_url")
+              .in("user_id", sellerIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { note_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.note_id)) {
+          imageMap.set(
+            row.note_id,
+            supabase.storage.from("notes-images").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
+      }
+
+      const sellerMap = new Map(
+        (sellers ?? []).map((s: any) => [
+          s.user_id,
+          {
+            user_id: s.user_id,
+            slug: s.slug,
+            display_name: s.display_name,
+            avatar_url: s.avatar_url,
+          },
+        ]),
+      );
+
+      return rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        price: Number(r.price),
+        category: r.category,
+        custom_category: r.custom_category,
+        condition: "",
+        urgent_sale: false,
+        seller: sellerMap.get(r.seller_id) ?? {
+          user_id: r.seller_id,
+          slug: "",
+          display_name: "Seller",
+          avatar_url: null,
+        },
+        coverImageUrl: imageMap.get(r.id) ?? null,
+      }));
+    },
+    refetchInterval: 10000,
+  });
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return products ?? [];
@@ -188,6 +401,27 @@ function MarketplaceHome() {
       );
     });
   }, [products, query]);
+
+  // Compute the items to show for the Fresh recommendations area.
+  const itemsToShow = useMemo(() => {
+    if (isLoading) return [] as ProductCardModel[];
+    // If a category is selected, pick the correct dataset:
+    // - Food -> foodRecs
+    // - Rent -> rentalRecs
+    // - Notes -> notesRecs
+    // - otherwise -> products filtered by that category
+    if (selectedCategory) {
+      if (selectedCategory === "Food") return foodRecs as unknown as ProductCardModel[];
+      if (selectedCategory === "Rent") return rentalRecs as unknown as ProductCardModel[];
+      if (selectedCategory === "Notes") return notesRecs as unknown as ProductCardModel[];
+      return (products ?? []).filter((p) => {
+        const category =
+          p.category === "Others" && p.custom_category ? p.custom_category : p.category;
+        return category === selectedCategory;
+      });
+    }
+    return filtered;
+  }, [isLoading, selectedCategory, foodRecs, rentalRecs, notesRecs, products, filtered]);
 
   const handleSell = () => {
     navigate({ to: "/upload-product" });
@@ -406,7 +640,9 @@ function MarketplaceHome() {
 
         <CategoryStrip
           className="mt-3"
-          onViewAll={() => handleDisabled("View all categories")}
+          onViewAll={() => navigate({ to: "/marketplace" })}
+          onCategorySelect={(k) => setSelectedCategory(k)}
+          activeKey={selectedCategory}
         />
 
         <div className="mt-6 flex items-center justify-between" id="fresh-recos">
@@ -425,11 +661,13 @@ function MarketplaceHome() {
             <div className="col-span-full py-16 text-center text-sm text-muted-foreground">
               Loading…
             </div>
-          ) : filtered.length ? (
-            filtered.map((p) => <ProductCard key={p.id} product={p} />)
+          ) : itemsToShow.length ? (
+            itemsToShow.map((p) => <ProductCard key={p.id} product={p} />)
           ) : (
             <div className="col-span-full py-16 text-center text-sm text-muted-foreground">
-              No listings found.
+              {selectedCategory
+                ? `No listings available yet in this category.`
+                : "No listings found."}
             </div>
           )}
         </div>
@@ -459,7 +697,7 @@ function MarketplaceHome() {
               with verified students.
             </p>
           </section>
-          <section>
+          <section id="contact-us">
             <div className="text-sm font-semibold">Contact us</div>
             <p className="mt-2 text-sm text-muted-foreground">
               Email: <span className="font-medium text-foreground">support@campusbazar.com</span>
@@ -482,10 +720,10 @@ function MarketplaceHome() {
           <button
             type="button"
             className="flex flex-col items-center gap-1 text-xs text-muted-foreground"
-            onClick={() => toast.message("Categories is coming soon")}
+            onClick={() => navigate({ to: "/rent" })}
           >
-            <Grid2X2 className="h-5 w-5" />
-            Categories
+            <Bike className="h-5 w-5" />
+            Rent
           </button>
 
           <button
@@ -520,7 +758,7 @@ function MarketplaceHome() {
       </nav>
 
       {/* Mobile top-right icons (wishlist/chats/profile), shown below header on small screens */}
-      <div className="fixed right-3 top-[64px] z-30 flex gap-2 sm:hidden">
+      <div className="fixed right-3 top-16 z-30 flex gap-2 sm:hidden">
         <Button
           variant="secondary"
           size="icon"
@@ -557,7 +795,7 @@ function MarketplaceHome() {
       </div>
 
       {isAdmin && (
-        <div className="fixed left-3 top-[64px] z-30 sm:hidden">
+        <div className="fixed left-3 top-16 z-30 sm:hidden">
           <Badge variant="secondary">Admin</Badge>
         </div>
       )}

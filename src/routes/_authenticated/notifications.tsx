@@ -30,13 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
@@ -201,7 +195,15 @@ function NotificationsPage() {
                 <Label className="mb-3 block text-sm font-semibold">Category</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {(
-                    ["marketplace", "rentals", "notes", "food", "chats", "requests", "system"] as const
+                    [
+                      "marketplace",
+                      "rentals",
+                      "notes",
+                      "food",
+                      "chats",
+                      "requests",
+                      "system",
+                    ] as const
                   ).map((mod) => {
                     const Icon = MODULE_ICONS[mod];
                     return (
@@ -306,7 +308,10 @@ function NotificationsPage() {
                     </div>
                     {!n.read && (
                       <span
-                        className={cn("absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full", style.dot)}
+                        className={cn(
+                          "absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full",
+                          style.dot,
+                        )}
                       />
                     )}
                   </div>
@@ -322,7 +327,9 @@ function NotificationsPage() {
                         </Badge>
                       )}
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{n.description}</p>
+                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+                      {n.description}
+                    </p>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {timeAgo(n.created_at)} · {MODULE_LABELS[n.module]}
                     </p>

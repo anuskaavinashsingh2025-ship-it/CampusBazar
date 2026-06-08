@@ -124,7 +124,12 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   {"isSellerProfile" in item && item.isSellerProfile ? (
                     <SidebarMenuButton
-                      isActive={!!(pathname === "/seller-profile" || (sellerProfile?.slug && pathname === `/seller/${sellerProfile.slug}`))}
+                      isActive={
+                        !!(
+                          pathname === "/seller-profile" ||
+                          (sellerProfile?.slug && pathname === `/seller/${sellerProfile.slug}`)
+                        )
+                      }
                       onClick={handleSellerProfileClick}
                     >
                       <item.icon className="h-4 w-4" />
@@ -133,7 +138,11 @@ export function AppSidebar() {
                   ) : (
                     <SidebarMenuButton
                       asChild
-                      isActive={isNavActive(pathname, item.url, "external" in item ? item.external : undefined)}
+                      isActive={isNavActive(
+                        pathname,
+                        item.url,
+                        "external" in item ? item.external : undefined,
+                      )}
                     >
                       <Link
                         to={item.url}
@@ -170,7 +179,7 @@ export function AppSidebar() {
                     <Link to={item.url} className="flex items-center gap-2">
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
-                      {item.showBadge && unreadCount > 0 && (
+                      {"showBadge" in item && item.showBadge && unreadCount > 0 && (
                         <Badge
                           variant="destructive"
                           className="ml-auto h-5 min-w-5 rounded-full px-1.5 text-[10px]"

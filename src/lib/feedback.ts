@@ -93,11 +93,7 @@ export async function submitFeedback(params: {
     status: "submitted",
   };
   console.log("[FEEDBACK PAYLOAD]", payload);
-  const { data, error } = await supabase
-    .from(FEEDBACK_TABLE)
-    .insert(payload)
-    .select()
-    .single();
+  const { data, error } = await supabase.from(FEEDBACK_TABLE).insert(payload).select().single();
   console.log("[FEEDBACK RESULT]", { data, error });
   if (error) throw error;
   return data as unknown as FeedbackRow;
@@ -122,17 +118,11 @@ export async function updateFeedbackStatus(params: {
 }
 
 export async function deleteFeedback(feedbackId: string): Promise<void> {
-  const { error } = await supabase
-    .from(FEEDBACK_TABLE)
-    .delete()
-    .eq("id", feedbackId);
+  const { error } = await supabase.from(FEEDBACK_TABLE).delete().eq("id", feedbackId);
   if (error) throw error;
 }
 
-export async function uploadFeedbackScreenshot(
-  userId: string,
-  file: File,
-): Promise<string> {
+export async function uploadFeedbackScreenshot(userId: string, file: File): Promise<string> {
   const fileExt = file.name.split(".").pop();
   const fileName = `${userId}/${Date.now()}.${fileExt}`;
   const { data, error } = await supabase.storage

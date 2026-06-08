@@ -49,6 +49,7 @@ function UploadFoodPage() {
 
   const [productName, setProductName] = useState("");
   const [brandName, setBrandName] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
   const [category, setCategory] = useState<(typeof FOOD_CATEGORIES)[number]>("Snacks");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
@@ -61,6 +62,48 @@ function UploadFoodPage() {
     if (profile?.full_name?.trim()) return profile.full_name.trim();
     return user?.email ?? "seller";
   }, [profile?.full_name, user?.email]);
+
+  // Prefill when editing via ?edit=<id>
+  useMemo(() => {
+    const search = new URLSearchParams(window.location.search);
+    const id = search.get("edit");
+    if (!id) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from(FOOD_LISTINGS_TABLE)
+        .select(
+          "id,product_name,brand_name,category,quantity,price,description,expiry_date,status,seller_id",
+        )
+        .eq("id", id)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      setEditId(String(data.id));
+      setProductName(String(data.product_name ?? ""));
+      setBrandName(String(data.brand_name ?? ""));
+      setCategory(String(data.category ?? "Snacks") as any);
+      setQuantity(String(data.quantity ?? ""));
+      setPrice(String(data.price ?? ""));
+      setExpiryDate(String(data.expiry_date ?? ""));
+      setDescription(String(data.description ?? ""));
+
+      const { data: imgs } = await supabase
+        .from(FOOD_IMAGES_TABLE)
+        .select("storage_path,sort_index")
+        .eq("food_listing_id", id)
+        .order("sort_index", { ascending: true });
+      if (!cancelled && imgs?.length) {
+        const previews = imgs.map(
+          (r: any) => supabase.storage.from("food-images").getPublicUrl(r.storage_path).data.publicUrl,
+        );
+        // Store previews in the images state by using a synthetic File-less preview array via setImages([]) and maybe separate state? Simpler: setImages([]) and keep previews in local variable
+        // We don't have a dedicated preview state in this component; rely on images File[] for new uploads and not display existing previews for now.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const canSubmit =
     productName.trim() &&
@@ -111,45 +154,69 @@ function UploadFoodPage() {
         avatar_url: profile?.avatar_url ?? null,
       });
 
-      const { data: inserted, error: insertErr } = await supabase
-        .from(FOOD_LISTINGS_TABLE)
-        .insert({
-          seller_id: user.id,
-          product_name: productName.trim(),
-          brand_name: brandName.trim(),
-          category,
-          quantity: quantity.trim(),
-          price: Number(price),
-          description: description.trim(),
-          expiry_date: expiryDate,
-          status: "available",
-        } as never)
-        .select("id")
-        .single();
-      if (insertErr) throw insertErr;
+      let listingId = editId;
+      if (listingId) {
+        // update existing
+        const { error } = await supabase
+          .from(FOOD_LISTINGS_TABLE)
+          .update({
+            product_name: productName.trim(),
+            brand_name: brandName.trim(),
+            category,
+            quantity: quantity.trim(),
+            price: Number(price),
+            description: description.trim(),
+            expiry_date: expiryDate,
+          } as never)
+          .eq("id", listingId)
+          .eq("seller_id", user.id);
+        if (error) throw error;
+      } else {
+        const { data: inserted, error: insertErr } = await supabase
+          .from(FOOD_LISTINGS_TABLE)
+          .insert({
+            seller_id: user.id,
+            product_name: productName.trim(),
+            brand_name: brandName.trim(),
+            category,
+            quantity: quantity.trim(),
+            price: Number(price),
+            description: description.trim(),
+            expiry_date: expiryDate,
+            status: "available",
+          } as never)
+          .select("id")
+          .single();
+        if (insertErr) throw insertErr;
 
-      const listingId = inserted.id as string;
-      for (let i = 0; i < images.length; i++) {
-        const file = images[i];
-        const objectName = `${listingId}/${i}-${file.name.replaceAll("/", "-")}`;
-        const { error: uploadErr } = await supabase.storage
-          .from("food-images")
-          .upload(objectName, file, {
+        listingId = inserted.id as string;
+        setEditId(listingId);
+      }
+
+      // If new images were provided, replace existing image rows and upload
+      if (images.length > 0) {
+        await supabase.from(FOOD_IMAGES_TABLE).delete().eq("food_listing_id", listingId as never);
+        const bucket = "food-images";
+        for (let i = 0; i < images.length; i++) {
+          const file = images[i];
+          const objectName = `${listingId}/${i}-${file.name.replaceAll("/", "-")}`;
+          const { error: uploadErr } = await supabase.storage.from(bucket).upload(objectName, file, {
+            upsert: true,
             contentType: file.type,
           });
-        if (uploadErr) throw uploadErr;
-
-        const { error: imgErr } = await supabase.from(FOOD_IMAGES_TABLE).insert({
-          food_listing_id: listingId,
-          storage_path: objectName,
-          sort_index: i,
-        } as never);
-        if (imgErr) throw imgErr;
+          if (uploadErr) throw uploadErr;
+          const { error: imgErr } = await supabase.from(FOOD_IMAGES_TABLE).insert({
+            food_listing_id: listingId,
+            storage_path: objectName,
+            sort_index: i,
+          } as never);
+          if (imgErr) throw imgErr;
+        }
       }
 
       await queryClient.invalidateQueries({ queryKey: ["food"] });
-      toast.success("Food listing posted!");
-      navigate({ to: "/food/$id", params: { id: listingId } });
+      toast.success(listingId && editId ? "Listing updated!" : "Food listing posted!");
+      navigate({ to: "/food/$id", params: { id: listingId as string } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not upload food listing");
     } finally {

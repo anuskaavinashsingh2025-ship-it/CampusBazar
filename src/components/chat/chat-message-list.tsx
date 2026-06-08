@@ -1,11 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Check, CheckCheck } from "lucide-react";
 
-import {
-  formatChatTime,
-  getChatImageUrl,
-  type MessageRow,
-} from "@/lib/chat";
+import { formatChatTime, getChatImageUrl, type MessageRow } from "@/lib/chat";
 import { cn } from "@/lib/utils";
 
 type ChatMessageListProps = {
@@ -38,10 +34,7 @@ export function ChatMessageList({
       {messages.map((msg) => {
         const isMine = msg.sender_id === currentUserId;
         return (
-          <div
-            key={msg.id}
-            className={cn("flex", isMine ? "justify-end" : "justify-start")}
-          >
+          <div key={msg.id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
             <div
               className={cn(
                 "max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm",
@@ -75,9 +68,7 @@ export function ChatMessageList({
         );
       })}
       {isTyping && (
-        <div className="text-xs text-muted-foreground">
-          {otherUserName ?? "User"} is typing...
-        </div>
+        <div className="text-xs text-muted-foreground">{otherUserName ?? "User"} is typing...</div>
       )}
       <div ref={bottomRef} />
     </div>

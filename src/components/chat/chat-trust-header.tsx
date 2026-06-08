@@ -29,7 +29,9 @@ export function ChatTrustHeader({ trust, listingTitle, isOnline }: ChatTrustHead
     enabled: Boolean(trust.user_id),
   });
 
-  const sellerUrl = sellerProfile?.slug ? `/seller/${sellerProfile.slug}` : `/seller/${trust.user_id}`;
+  const sellerUrl = sellerProfile?.slug
+    ? `/seller/${sellerProfile.slug}`
+    : `/seller/${trust.user_id}`;
 
   return (
     <div className="border-b bg-card/95 px-4 py-3 backdrop-blur">
@@ -37,7 +39,9 @@ export function ChatTrustHeader({ trust, listingTitle, isOnline }: ChatTrustHead
         <div className="relative">
           <a href={sellerUrl} className="block">
             <Avatar className="h-11 w-11">
-              {trust.avatar_url ? <AvatarImage src={trust.avatar_url} alt="" /> : null}
+              {trust.avatar_url ? (
+                <AvatarImage src={`${trust.avatar_url}?t=${Date.now()}`} alt="" />
+              ) : null}
               <AvatarFallback>{trust.display_name.slice(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
           </a>

@@ -4,14 +4,27 @@ import { Star, Upload, X, CheckCircle2, Clock, AlertCircle } from "lucide-react"
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/lib/auth";
-import { useUserFeedback, useSubmitFeedback, FEEDBACK_CATEGORIES, type FeedbackCategory, type FeedbackRow, type FeedbackStatus } from "@/lib/feedback";
+import {
+  useUserFeedback,
+  useSubmitFeedback,
+  FEEDBACK_CATEGORIES,
+  type FeedbackCategory,
+  type FeedbackRow,
+  type FeedbackStatus,
+} from "@/lib/feedback";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/feedback")({
   head: () => ({
@@ -33,7 +46,7 @@ function FeedbackPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!rating) {
       alert("Please select a rating");
       return;
@@ -90,11 +103,23 @@ function FeedbackPage() {
   const getStatusBadge = (status: FeedbackStatus) => {
     switch (status) {
       case "submitted":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Submitted</Badge>;
+        return (
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            Submitted
+          </Badge>
+        );
       case "under_review":
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Under Review</Badge>;
+        return (
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+            Under Review
+          </Badge>
+        );
       case "resolved":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Resolved</Badge>;
+        return (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            Resolved
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -134,7 +159,9 @@ function FeedbackPage() {
         <Card className="border-orange-200 shadow-lg">
           <CardHeader className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
             <CardTitle className="text-2xl font-bold">Feedback</CardTitle>
-            <p className="text-orange-100 mt-1">Help us improve Campus Bazar by sharing your valuable feedback.</p>
+            <p className="text-orange-100 mt-1">
+              Help us improve Campus Bazar by sharing your valuable feedback.
+            </p>
           </CardHeader>
           <CardContent className="p-6 sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -157,7 +184,9 @@ function FeedbackPage() {
                     </button>
                   ))}
                 </div>
-                {rating === 0 && <p className="mt-1 text-sm text-red-500">Please select a rating</p>}
+                {rating === 0 && (
+                  <p className="mt-1 text-sm text-red-500">Please select a rating</p>
+                )}
               </div>
 
               {/* Category Dropdown */}
@@ -165,7 +194,10 @@ function FeedbackPage() {
                 <Label htmlFor="category" className="text-base font-semibold text-gray-900">
                   Category *
                 </Label>
-                <Select value={category} onValueChange={(value) => setCategory(value as FeedbackCategory)}>
+                <Select
+                  value={category}
+                  onValueChange={(value) => setCategory(value as FeedbackCategory)}
+                >
                   <SelectTrigger className="mt-2">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
@@ -195,7 +227,9 @@ function FeedbackPage() {
                 />
                 <div className="mt-1 flex justify-between text-sm">
                   <span className="text-gray-500">
-                    {message.length < 10 && <span className="text-red-500">Minimum 10 characters</span>}
+                    {message.length < 10 && (
+                      <span className="text-red-500">Minimum 10 characters</span>
+                    )}
                   </span>
                   <span className={message.length > 500 ? "text-red-500" : "text-gray-500"}>
                     {message.length}/500
@@ -205,7 +239,9 @@ function FeedbackPage() {
 
               {/* Screenshot Upload */}
               <div>
-                <Label className="text-base font-semibold text-gray-900">Screenshot (Optional)</Label>
+                <Label className="text-base font-semibold text-gray-900">
+                  Screenshot (Optional)
+                </Label>
                 <div className="mt-2">
                   {screenshotPreview ? (
                     <div className="relative inline-block">
@@ -300,7 +336,8 @@ function FeedbackPage() {
                         )}
                         {feedback.admin_notes && (
                           <div className="mt-2 rounded bg-blue-50 p-2 text-sm text-blue-700">
-                            <span className="font-semibold">Admin Note:</span> {feedback.admin_notes}
+                            <span className="font-semibold">Admin Note:</span>{" "}
+                            {feedback.admin_notes}
                           </div>
                         )}
                         <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">

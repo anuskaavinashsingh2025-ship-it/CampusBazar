@@ -16,10 +16,7 @@ export function HubNavStrip({ active, className }: { active?: HubKey; className?
   const navigate = useNavigate();
 
   return (
-    <nav
-      className={cn("flex gap-2 overflow-x-auto pb-1", className)}
-      aria-label="Marketplace hubs"
-    >
+    <nav className={cn("flex gap-2 overflow-x-auto pb-1", className)} aria-label="Marketplace hubs">
       {HUB_LINKS.map((link) => (
         <button
           key={link.key}

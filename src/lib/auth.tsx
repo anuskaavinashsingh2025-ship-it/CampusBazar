@@ -39,7 +39,7 @@ async function fetchProfileAndRoles(authUser: User) {
   ]);
   return {
     profile: profileData ?? null,
-    roles: (roleData ?? []).map((r) => r.role as AppRole),
+    roles: (roleData ?? []).map((r: { role: string }) => r.role as AppRole),
   };
 }
 
@@ -91,15 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event: string, nextSession: Session | null) => {
       applySession(nextSession);
 
       if (nextSession?.user && event === "SIGNED_IN" && nextSession.user.email) {
         saveLogin({
           email: nextSession.user.email,
-          displayName: (nextSession.user.user_metadata?.full_name as string | undefined) ?? undefined,
-          provider:
-            nextSession.user.app_metadata?.provider === "google" ? "google" : "email",
+          displayName:
+            (nextSession.user.user_metadata?.full_name as string | undefined) ?? undefined,
+          provider: nextSession.user.app_metadata?.provider === "google" ? "google" : "email",
         });
       }
 

@@ -81,7 +81,9 @@ function NotificationSettingsPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Notification Settings</h1>
-          <p className="text-sm text-muted-foreground">Choose what you want to be notified about.</p>
+          <p className="text-sm text-muted-foreground">
+            Choose what you want to be notified about.
+          </p>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, useEffect, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { GraduationCap, Image as ImageIcon, Loader2, ArrowLeft } from "lucide-react";
@@ -80,6 +80,45 @@ function UploadRentalPage() {
   const [condition, setCondition] = useState<ConditionOption>("Good");
   const [images, setImages] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+
+  // support editing an existing rental via ?edit=<id>
+  useEffect(() => {
+    const search = new URLSearchParams(window.location.search);
+    const editId = search.get("edit");
+    if (!editId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from(RENTAL_LISTINGS_TABLE)
+        .select("id,title,description,category,custom_category,rent_price_per_day,condition")
+        .eq("id", editId)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      setTitle(String(data.title ?? ""));
+      setDescription(String(data.description ?? ""));
+      setCategory((data.category as CategoryOption) ?? "Books");
+      setCustomCategory(String(data.custom_category ?? ""));
+      setRentPrice(String(data.rent_price_per_day ?? ""));
+      setCondition((data.condition as ConditionOption) ?? "Good");
+
+      const { data: imgs } = await supabase
+        .from(RENTAL_IMAGES_TABLE)
+        .select("storage_path,sort_index")
+        .eq("rental_id", editId)
+        .order("sort_index", { ascending: true });
+      if (!cancelled && imgs?.length) {
+        const previews = imgs.map(
+          (row: any) =>
+            supabase.storage.from("rental-images").getPublicUrl(row.storage_path).data.publicUrl,
+        );
+        setImagePreviews(previews as string[]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!user) {
     return (

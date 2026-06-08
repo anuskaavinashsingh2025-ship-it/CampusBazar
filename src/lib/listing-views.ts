@@ -21,10 +21,13 @@ export function useTrackListingView(
     if (tracked.current === key) return;
     tracked.current = key;
 
-    void supabase.rpc("increment_listing_view" as never, {
-      p_item_type: itemType,
-      p_item_id: itemId,
-    } as never);
+    void supabase.rpc(
+      "increment_listing_view" as never,
+      {
+        p_item_type: itemType,
+        p_item_id: itemId,
+      } as never,
+    );
 
     const recent = recentRef.current;
     if (recent) {

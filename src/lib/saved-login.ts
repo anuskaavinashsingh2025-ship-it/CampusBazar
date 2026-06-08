@@ -23,16 +23,14 @@ export function saveLogin(entry: Omit<SavedLogin, "savedAt">) {
   const existing = getSavedLogins().filter(
     (item) => item.email.toLowerCase() !== entry.email.toLowerCase(),
   );
-  const next: SavedLogin[] = [
-    { ...entry, savedAt: new Date().toISOString() },
-    ...existing,
-  ].slice(0, MAX_SAVED);
+  const next: SavedLogin[] = [{ ...entry, savedAt: new Date().toISOString() }, ...existing].slice(
+    0,
+    MAX_SAVED,
+  );
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 }
 
 export function removeSavedLogin(email: string) {
-  const next = getSavedLogins().filter(
-    (item) => item.email.toLowerCase() !== email.toLowerCase(),
-  );
+  const next = getSavedLogins().filter((item) => item.email.toLowerCase() !== email.toLowerCase());
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 }

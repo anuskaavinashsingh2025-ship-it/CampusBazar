@@ -22,7 +22,8 @@ export async function submitListingReport(input: {
   else if (input.targetType === "rental") payload.rental_id = input.itemId;
   else if (input.targetType === "food") payload.food_listing_id = input.itemId;
   else if (input.targetType === "notes") payload.notes_listing_id = input.itemId;
-  else if (input.targetType === "seller") payload.seller_user_id = input.sellerUserId ?? input.itemId;
+  else if (input.targetType === "seller")
+    payload.seller_user_id = input.sellerUserId ?? input.itemId;
 
   const { error } = await supabase.from("reports" as never).insert(payload as never);
   if (error) throw error;

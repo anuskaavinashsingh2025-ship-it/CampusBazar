@@ -1,14 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Eye,
-  Heart,
-  Loader2,
-  MessageSquare,
-  Search,
-  ShoppingBag,
-} from "lucide-react";
+import { Eye, Heart, Loader2, MessageSquare, Search, ShoppingBag } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -119,9 +112,7 @@ function WishlistPage() {
           <h1 className="text-2xl font-bold tracking-tight">
             Wishlist <span className="text-red-500">❤</span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Saved items: {wishlistRows.length}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Saved items: {wishlistRows.length}</p>
         </div>
         <Card className="border-primary/20 bg-primary/5 shadow-none">
           <CardContent className="flex items-center gap-3 p-4">
@@ -200,9 +191,7 @@ function WishlistPage() {
                     )}
                     <Badge
                       className={`absolute left-2 top-2 text-[10px] ${
-                        item.soldOut
-                          ? "bg-red-500"
-                          : "bg-emerald-500 hover:bg-emerald-500"
+                        item.soldOut ? "bg-red-500" : "bg-emerald-500 hover:bg-emerald-500"
                       }`}
                     >
                       {item.soldOut ? "Sold" : timeAgo(item.createdAt)}
@@ -214,21 +203,19 @@ function WishlistPage() {
                       <div>
                         <h3 className="font-semibold leading-snug">{item.title}</h3>
                         {item.price != null && (
-                          <p className="text-lg font-bold text-primary">
-                            {formatInr(item.price)}
-                          </p>
+                          <p className="text-lg font-bold text-primary">{formatInr(item.price)}</p>
                         )}
                       </div>
-                      <WishlistButton
-                        listingId={item.listingId}
-                        variant="inline"
-                      />
+                      <WishlistButton listingId={item.listingId} variant="inline" />
                     </div>
 
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Avatar className="h-6 w-6">
                         {item.sellerAvatar ? (
-                          <AvatarImage src={item.sellerAvatar} alt={item.sellerName} />
+                          <AvatarImage
+                            src={`${item.sellerAvatar}${(item.sellerAvatar as string).includes("?") ? "&" : "?"}t=${Date.now()}`}
+                            alt={item.sellerName}
+                          />
                         ) : null}
                         <AvatarFallback>{item.sellerName.slice(0, 2).toUpperCase()}</AvatarFallback>
                       </Avatar>
@@ -300,7 +287,7 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<NormalizedWish
         .select("id,title,price,category,custom_category,status,seller_id")
         .eq("id", listingId)
         .single();
-      
+
       if (product) {
         const { data: images } = await supabase
           .from("product_images" as unknown as keyof Database["public"]["Tables"])
@@ -308,23 +295,28 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<NormalizedWish
           .eq("product_id", listingId)
           .order("sort_index", { ascending: true })
           .limit(1);
-        
+
         const { data: seller } = await supabase
           .from("seller_profiles")
           .select("slug,display_name,avatar_url")
           .eq("user_id", product.seller_id)
           .single();
 
-        const coverUrl = images && images.length > 0
-          ? supabase.storage.from("product-images").getPublicUrl(images[0].storage_path).data.publicUrl
-          : null;
+        const coverUrl =
+          images && images.length > 0
+            ? supabase.storage.from("product-images").getPublicUrl(images[0].storage_path).data
+                .publicUrl
+            : null;
 
         results.push({
           listingId,
           listingType: "product",
           title: product.title,
           price: Number(product.price),
-          category: product.category === "Others" && product.custom_category ? product.custom_category : product.category,
+          category:
+            product.category === "Others" && product.custom_category
+              ? product.custom_category
+              : product.category,
           coverUrl,
           status: product.status,
           sellerName: seller?.display_name ?? "Seller",
@@ -348,7 +340,7 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<NormalizedWish
         .select("id,title,rent_price_per_day,category,custom_category,status,seller_id")
         .eq("id", listingId)
         .single();
-      
+
       if (rental) {
         const { data: images } = await supabase
           .from("rental_images" as unknown as keyof Database["public"]["Tables"])
@@ -356,23 +348,28 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<NormalizedWish
           .eq("rental_id", listingId)
           .order("sort_index", { ascending: true })
           .limit(1);
-        
+
         const { data: seller } = await supabase
           .from("seller_profiles")
           .select("slug,display_name,avatar_url")
           .eq("user_id", rental.seller_id)
           .single();
 
-        const coverUrl = images && images.length > 0
-          ? supabase.storage.from("rental-images").getPublicUrl(images[0].storage_path).data.publicUrl
-          : null;
+        const coverUrl =
+          images && images.length > 0
+            ? supabase.storage.from("rental-images").getPublicUrl(images[0].storage_path).data
+                .publicUrl
+            : null;
 
         results.push({
           listingId,
           listingType: "rental",
           title: rental.title,
           price: Number(rental.rent_price_per_day),
-          category: rental.category === "Others" && rental.custom_category ? rental.custom_category : rental.category,
+          category:
+            rental.category === "Others" && rental.custom_category
+              ? rental.custom_category
+              : rental.category,
           coverUrl,
           status: rental.status,
           sellerName: seller?.display_name ?? "Seller",
@@ -396,7 +393,7 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<NormalizedWish
         .select("id,product_name,price,category,status,seller_id")
         .eq("id", listingId)
         .single();
-      
+
       if (food) {
         const { data: images } = await supabase
           .from("food_images" as unknown as keyof Database["public"]["Tables"])
@@ -404,16 +401,18 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<NormalizedWish
           .eq("food_listing_id", listingId)
           .order("sort_index", { ascending: true })
           .limit(1);
-        
+
         const { data: seller } = await supabase
           .from("seller_profiles")
           .select("slug,display_name,avatar_url")
           .eq("user_id", food.seller_id)
           .single();
 
-        const coverUrl = images && images.length > 0
-          ? supabase.storage.from("food-images").getPublicUrl(images[0].storage_path).data.publicUrl
-          : null;
+        const coverUrl =
+          images && images.length > 0
+            ? supabase.storage.from("food-images").getPublicUrl(images[0].storage_path).data
+                .publicUrl
+            : null;
 
         results.push({
           listingId,
@@ -444,7 +443,7 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<NormalizedWish
         .select("id,title,subject,status,seller_id,is_free,price")
         .eq("id", listingId)
         .single();
-      
+
       if (notes) {
         const { data: seller } = await supabase
           .from("seller_profiles")
@@ -479,8 +478,6 @@ async function resolveWishlistItems(rows: WishlistRow[]): Promise<NormalizedWish
 
   console.log("[Wishlist Resolved Listings]", results);
   console.log("[Wishlist Final Render]", results.length);
-  
-  return results.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+
+  return results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }

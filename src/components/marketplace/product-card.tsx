@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
+import ListingActions from "@/components/listing/listing-actions";
 import { Badge } from "@/components/ui/badge";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,6 +31,7 @@ function formatInr(amount: number) {
 }
 
 export function ProductCard({ product }: { product: ProductCardModel }) {
+  const navigate = useNavigate();
   const categoryLabel =
     product.category === "Others" && product.custom_category
       ? product.custom_category
@@ -36,13 +39,25 @@ export function ProductCard({ product }: { product: ProductCardModel }) {
 
   console.log("[ProductCard]", {
     listingId: product?.id,
-    title: product?.title
+    title: product?.title,
   });
 
   return (
     <Card className="overflow-hidden border-border/60 shadow-sm">
       <CardContent className="p-0">
         <div className="relative">
+          <div
+            className="absolute right-2 top-2 z-20"
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <ListingActions
+              itemType="product"
+              itemId={product.id}
+              ownerId={product.seller.user_id}
+              onEdit={() => window.location.assign(`/upload-product?edit=${product.id}`)}
+            />
+          </div>
           <Link to="/product/$id" params={{ id: product.id }} className="block">
             {product.coverImageUrl ? (
               <img
@@ -85,7 +100,10 @@ export function ProductCard({ product }: { product: ProductCardModel }) {
           <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
             <Avatar className="h-7 w-7">
               {product.seller.avatar_url ? (
-                <AvatarImage src={product.seller.avatar_url} alt={product.seller.display_name} />
+                <AvatarImage
+                  src={`${product.seller.avatar_url}?t=${Date.now()}`}
+                  alt={product.seller.display_name}
+                />
               ) : (
                 <AvatarFallback>
                   {product.seller.display_name.slice(0, 2).toUpperCase()}

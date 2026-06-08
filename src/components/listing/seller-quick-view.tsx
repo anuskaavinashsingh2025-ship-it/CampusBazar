@@ -20,7 +20,7 @@ export function SellerQuickView({ seller }: { seller: SellerQuickViewData }) {
       <div className="mt-3 flex items-center gap-3">
         <Avatar className="h-12 w-12">
           {seller.avatar_url ? (
-            <AvatarImage src={seller.avatar_url} alt={seller.display_name} />
+            <AvatarImage src={`${seller.avatar_url}?t=${Date.now()}`} alt={seller.display_name} />
           ) : null}
           <AvatarFallback>{seller.display_name.slice(0, 2).toUpperCase()}</AvatarFallback>
         </Avatar>

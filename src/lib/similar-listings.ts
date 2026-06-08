@@ -100,8 +100,8 @@ export function useSimilarListings(
         }
       }
 
-      return listings.map((raw) => {
-        const l = raw as Record<string, unknown>;
+      return listings.map((raw: Record<string, unknown>) => {
+        const l = raw;
         let title = String(l.title ?? l.product_name ?? "Listing");
         let priceLabel = "";
         if (itemType === "product") priceLabel = formatInr(Number(l.price));

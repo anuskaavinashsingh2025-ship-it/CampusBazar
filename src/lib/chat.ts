@@ -1,10 +1,5 @@
 import { useEffect, useMemo } from "react";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -73,12 +68,7 @@ export type ConversationListItem = ConversationRow & {
   section: ChatSection;
 };
 
-export type ChatSection =
-  | "active"
-  | "rental"
-  | "request"
-  | "archived"
-  | "reported";
+export type ChatSection = "active" | "rental" | "request" | "archived" | "reported";
 
 export type ParticipantTrustInfo = {
   user_id: string;
@@ -102,8 +92,7 @@ const RATINGS_TABLE = "conversation_ratings" as unknown as keyof Database["publi
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
-export const conversationsQueryKey = (userId: string | null) =>
-  ["conversations", userId] as const;
+export const conversationsQueryKey = (userId: string | null) => ["conversations", userId] as const;
 
 export const messagesQueryKey = (conversationId: string | null) =>
   ["messages", conversationId] as const;
@@ -118,10 +107,7 @@ export function invalidateChatQueries(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["chats_unread_count"] });
 }
 
-export function classifyConversationSection(
-  conv: ConversationRow,
-  _userId: string,
-): ChatSection {
+export function classifyConversationSection(conv: ConversationRow, _userId: string): ChatSection {
   if (conv.is_reported || conv.status === "reported") return "reported";
   if (conv.status === "archived" || conv.status === "completed") return "archived";
   if (conv.status === "active" && !conv.last_message_at) return "request";
@@ -191,15 +177,21 @@ async function enrichConversations(
     .select("id,full_name,avatar_url,email,hostel_block")
     .in("id", uniqueIds);
 
-  const profileMap = new Map(
+  const profileMap = new Map<string, {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+    email: string | null;
+    hostel_block: string | null;
+  }>(
     (profiles ?? []).map(
-      (p: { id: string; full_name: string | null; avatar_url: string | null; email: string; hostel_block: string | null }) => [
+      (p: { id: string; full_name: string | null; avatar_url: string | null; email: string | null; hostel_block: string | null }) => [
         p.id,
         {
           id: p.id,
           display_name: p.full_name ?? "Student",
           avatar_url: p.avatar_url,
-          email: p.email,
+          email: p.email ?? null,
           hostel_block: p.hostel_block,
         },
       ],
@@ -278,10 +270,16 @@ export async function fetchMessages(conversationId: string): Promise<MessageRow[
 
 export async function fetchParticipantTrust(userId: string): Promise<ParticipantTrustInfo> {
   const [{ data: profile }, { data: seller }] = await Promise.all([
-    supabase.from("profiles").select("id,full_name,avatar_url,email,created_at").eq("id", userId).maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("id,full_name,avatar_url,email,created_at")
+      .eq("id", userId)
+      .maybeSingle(),
     supabase
       .from("seller_profiles")
-      .select("user_id,display_name,avatar_url,joined_at,rating_avg,rating_count,total_sold,total_rented_out")
+      .select(
+        "user_id,display_name,avatar_url,joined_at,rating_avg,rating_count,total_sold,total_rented_out",
+      )
       .eq("user_id", userId)
       .maybeSingle(),
   ]);
@@ -338,14 +336,17 @@ export async function getOrCreateConversation(input: {
     listingTitle: input.listingTitle,
   });
 
-  const { data, error } = await supabase.rpc("get_or_create_conversation" as never, {
-    p_buyer_id: input.buyerId,
-    p_seller_id: input.sellerId,
-    p_context_type: input.contextType,
-    p_context_id: input.contextId,
-    p_request_id: input.requestId ?? null,
-    p_listing_title: input.listingTitle,
-  } as never);
+  const { data, error } = await supabase.rpc(
+    "get_or_create_conversation" as never,
+    {
+      p_buyer_id: input.buyerId,
+      p_seller_id: input.sellerId,
+      p_context_type: input.contextType,
+      p_context_id: input.contextId,
+      p_request_id: input.requestId ?? null,
+      p_listing_title: input.listingTitle,
+    } as never,
+  );
 
   console.log("[getOrCreateConversation] RPC result:", { data, error });
 
@@ -354,7 +355,9 @@ export async function getOrCreateConversation(input: {
     return data as string;
   }
 
-  console.log("[getOrCreateConversation] RPC failed or returned null, checking existing conversation");
+  console.log(
+    "[getOrCreateConversation] RPC failed or returned null, checking existing conversation",
+  );
 
   const { data: existing } = await supabase
     .from(CONVERSATIONS_TABLE)
@@ -433,7 +436,10 @@ export function useUnreadChatCount(userId: string | null | undefined) {
   });
 }
 
-export function useConversation(conversationId: string | undefined, userId: string | null | undefined) {
+export function useConversation(
+  conversationId: string | undefined,
+  userId: string | null | undefined,
+) {
   return useQuery({
     queryKey: ["conversation", conversationId, userId],
     queryFn: () => fetchConversation(conversationId!, userId!),
@@ -473,16 +479,13 @@ export function useMessageRealtime(conversationId: string | undefined) {
           table: "messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
-          const newMsg = payload.new as MessageRow;
-          queryClient.setQueryData<MessageRow[]>(
-            messagesQueryKey(conversationId),
-            (old) => {
-              if (!old) return [newMsg];
-              if (old.some((m) => m.id === newMsg.id)) return old;
-              return [...old, newMsg];
-            },
-          );
+      (payload: { new: MessageRow }) => {
+        const newMsg = payload.new as MessageRow;
+          queryClient.setQueryData<MessageRow[]>(messagesQueryKey(conversationId), (old) => {
+            if (!old) return [newMsg];
+            if (old.some((m) => m.id === newMsg.id)) return old;
+            return [...old, newMsg];
+          });
           void queryClient.invalidateQueries({ queryKey: conversationsQueryKey(null) });
         },
       )
@@ -494,7 +497,7 @@ export function useMessageRealtime(conversationId: string | undefined) {
           table: "messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
+        (payload: { new: MessageRow }) => {
           const updated = payload.new as MessageRow;
           queryClient.setQueryData<MessageRow[]>(
             messagesQueryKey(conversationId),
@@ -518,14 +521,10 @@ export function useConversationRealtime(userId: string | null | undefined) {
 
     const channel = supabase
       .channel(`conversations:${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "conversations" },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: conversationsQueryKey(userId) });
-          void queryClient.invalidateQueries({ queryKey: unreadChatsQueryKey(userId) });
-        },
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
+        void queryClient.invalidateQueries({ queryKey: conversationsQueryKey(userId) });
+        void queryClient.invalidateQueries({ queryKey: unreadChatsQueryKey(userId) });
+      })
       .subscribe();
 
     return () => {
@@ -621,7 +620,10 @@ export function useUpdatePresence(userId: string | null | undefined) {
   }, [userId]);
 }
 
-export function useSetTyping(userId: string | null | undefined, conversationId: string | undefined) {
+export function useSetTyping(
+  userId: string | null | undefined,
+  conversationId: string | undefined,
+) {
   return useMutation({
     mutationFn: async (isTyping: boolean) => {
       if (!userId || !conversationId) return;
@@ -726,9 +728,12 @@ export function useMarkConversationRead(userId: string | null | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (conversationId: string) => {
-      const { error } = await supabase.rpc("mark_conversation_read" as never, {
-        p_conversation_id: conversationId,
-      } as never);
+      const { error } = await supabase.rpc(
+        "mark_conversation_read" as never,
+        {
+          p_conversation_id: conversationId,
+        } as never,
+      );
       if (error) throw error;
     },
     onSettled: (_, __, conversationId) => {
@@ -835,11 +840,7 @@ export function useSubmitChatReport(userId: string | null | undefined) {
 export function useSubmitRating(userId: string | null | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      conversationId: string;
-      rating: number;
-      review?: string;
-    }) => {
+    mutationFn: async (input: { conversationId: string; rating: number; review?: string }) => {
       const { error } = await supabase.from(RATINGS_TABLE).insert({
         conversation_id: input.conversationId,
         rater_id: userId!,
@@ -884,7 +885,11 @@ export async function ensureConversationOnAccept(input: {
     });
 
     try {
-      console.log("[ensureConversationOnAccept] Creating buyer notification for userId:", input.buyerId, "title: Chat Ready");
+      console.log(
+        "[ensureConversationOnAccept] Creating buyer notification for userId:",
+        input.buyerId,
+        "title: Chat Ready",
+      );
       await createNotification({
         userId: input.buyerId,
         title: "Chat Ready",
@@ -896,11 +901,18 @@ export async function ensureConversationOnAccept(input: {
       });
       console.log("[ensureConversationOnAccept] Buyer notification created successfully");
     } catch (notifErr) {
-      console.error("[ensureConversationOnAccept] Buyer notification failed (non-blocking):", notifErr);
+      console.error(
+        "[ensureConversationOnAccept] Buyer notification failed (non-blocking):",
+        notifErr,
+      );
     }
 
     try {
-      console.log("[ensureConversationOnAccept] Creating seller notification for userId:", input.sellerId, "title: Chat Ready");
+      console.log(
+        "[ensureConversationOnAccept] Creating seller notification for userId:",
+        input.sellerId,
+        "title: Chat Ready",
+      );
       await createNotification({
         userId: input.sellerId,
         title: "Chat Ready",
@@ -912,7 +924,10 @@ export async function ensureConversationOnAccept(input: {
       });
       console.log("[ensureConversationOnAccept] Seller notification created successfully");
     } catch (notifErr) {
-      console.error("[ensureConversationOnAccept] Seller notification failed (non-blocking):", notifErr);
+      console.error(
+        "[ensureConversationOnAccept] Seller notification failed (non-blocking):",
+        notifErr,
+      );
     }
   }
 
@@ -956,7 +971,10 @@ export function formatChatTime(iso: string | null) {
   return new Date(iso).toLocaleDateString();
 }
 
-export function useIsTyping(otherPresence: ReturnType<typeof usePresence>["data"], conversationId: string) {
+export function useIsTyping(
+  otherPresence: ReturnType<typeof usePresence>["data"],
+  conversationId: string,
+) {
   return useMemo(() => {
     if (!otherPresence?.typing_conversation_id) return false;
     if (otherPresence.typing_conversation_id !== conversationId) return false;

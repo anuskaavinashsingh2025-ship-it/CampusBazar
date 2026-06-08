@@ -68,11 +68,14 @@ export function parseRentalRequestMessage(message: string | null) {
   const lines = message.split("\n");
   const result = { duration: "", pickupDate: "", pickupLocation: "", personalMessage: "" };
   for (const line of lines) {
-    if (line.startsWith("Rental Duration:")) result.duration = line.replace("Rental Duration:", "").trim();
-    else if (line.startsWith("Pickup Date:")) result.pickupDate = line.replace("Pickup Date:", "").trim();
+    if (line.startsWith("Rental Duration:"))
+      result.duration = line.replace("Rental Duration:", "").trim();
+    else if (line.startsWith("Pickup Date:"))
+      result.pickupDate = line.replace("Pickup Date:", "").trim();
     else if (line.startsWith("Pickup Location:"))
       result.pickupLocation = line.replace("Pickup Location:", "").trim();
-    else if (line.startsWith("Message:")) result.personalMessage = line.replace("Message:", "").trim();
+    else if (line.startsWith("Message:"))
+      result.personalMessage = line.replace("Message:", "").trim();
   }
   return result;
 }
@@ -84,18 +87,12 @@ async function enrichRequests(rows: RentalRequestRow[]): Promise<RentalRequestDe
   const userIds = [...new Set(rows.flatMap((r) => [r.buyer_id, r.seller_id]))];
 
   const [{ data: rentals }, { data: images }, { data: profiles }] = await Promise.all([
-    supabase
-      .from(RENTALS_TABLE)
-      .select("id,title,rent_price_per_day,status")
-      .in("id", rentalIds),
+    supabase.from(RENTALS_TABLE).select("id,title,rent_price_per_day,status").in("id", rentalIds),
     supabase
       .from(RENTAL_IMAGES_TABLE)
       .select("rental_id,storage_path,sort_index")
       .in("rental_id", rentalIds),
-    supabase
-      .from("profiles")
-      .select("id,full_name,avatar_url,hostel_block")
-      .in("id", userIds),
+    supabase.from("profiles").select("id,full_name,avatar_url,hostel_block").in("id", userIds),
   ]);
 
   const imageMap = new Map<string, string>();
@@ -109,10 +106,14 @@ async function enrichRequests(rows: RentalRequestRow[]): Promise<RentalRequestDe
     }
   }
 
-  const profileMap = new Map(
+  const profileMap = new Map<string, { display_name: string; avatar_url: string | null; hostel_block: string | null }>(
     (profiles ?? []).map((p: { id: string; full_name: string | null; avatar_url: string | null; hostel_block: string | null }) => [
       p.id,
-      { display_name: p.full_name ?? "Student", avatar_url: p.avatar_url, hostel_block: p.hostel_block },
+      {
+        display_name: p.full_name ?? "Student",
+        avatar_url: p.avatar_url,
+        hostel_block: p.hostel_block,
+      },
     ]),
   );
 
@@ -215,7 +216,9 @@ export function useCreateRentalRequest() {
         .single();
       if (error) throw error;
 
-      const buyerDetails = input.buyerName ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}` : "";
+      const buyerDetails = input.buyerName
+        ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}`
+        : "";
       await createNotification({
         userId: input.sellerId,
         title: "Rental Request Received",
@@ -255,7 +258,10 @@ export function useUpdateRentalRequest() {
       notificationDescription?: string;
       listingStatus?: "available" | "rented_out" | "unavailable";
     }): Promise<ChatMutationResult> => {
-      console.log("[useUpdateRentalRequest] Called with:", { requestId: input.requestId, status: input.status });
+      console.log("[useUpdateRentalRequest] Called with:", {
+        requestId: input.requestId,
+        status: input.status,
+      });
       let conversationId: string | undefined;
       const { error } = await supabase
         .from(REQUESTS_TABLE)
@@ -287,7 +293,10 @@ export function useUpdateRentalRequest() {
             metadata: { requestId: input.requestId, rentalId: input.rentalId },
           });
         } catch (notifErr) {
-          console.error("[useUpdateRentalRequest] Notification creation failed (non-blocking):", notifErr);
+          console.error(
+            "[useUpdateRentalRequest] Notification creation failed (non-blocking):",
+            notifErr,
+          );
         }
       }
 
@@ -308,7 +317,8 @@ export function useUpdateRentalRequest() {
             .select("title")
             .eq("id", row.rental_id)
             .maybeSingle();
-          const title = (rental as { title: string } | null)?.title ?? input.rentalTitle ?? "Rental listing";
+          const title =
+            (rental as { title: string } | null)?.title ?? input.rentalTitle ?? "Rental listing";
 
           console.log("[useUpdateRentalRequest] Rental title:", title);
 

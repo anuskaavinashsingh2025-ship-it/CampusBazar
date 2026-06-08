@@ -48,7 +48,7 @@ function CompleteProfilePage() {
       setFullName(profile.full_name ?? "");
       setHostelType(profile.hostel_type ?? "");
       setHostelBlock(profile.hostel_block ?? "");
-      setOtherHostelBlock(profile.hostel_block === "Other" ? profile.hostel_block ?? "" : "");
+      setOtherHostelBlock(profile.hostel_block === "Other" ? (profile.hostel_block ?? "") : "");
       setRoomNumber(profile.room_number ?? "");
       setPhoneNumber(profile.phone_number ?? "");
     }
@@ -174,7 +174,10 @@ function CompleteProfilePage() {
                     <option value="" disabled>
                       Select your block
                     </option>
-                    {(hostelType === "Ladies Hostel" ? LADIES_HOSTEL_BLOCKS : MENS_HOSTEL_BLOCKS).map((block) => (
+                    {(hostelType === "Ladies Hostel"
+                      ? LADIES_HOSTEL_BLOCKS
+                      : MENS_HOSTEL_BLOCKS
+                    ).map((block) => (
                       <option key={block} value={block}>
                         {block}
                       </option>

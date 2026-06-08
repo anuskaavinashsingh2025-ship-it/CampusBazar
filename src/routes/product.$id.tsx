@@ -14,6 +14,7 @@ import { ListingStats } from "@/components/listing/listing-stats";
 import { RecentlyViewedSection } from "@/components/listing/recently-viewed-section";
 import { ReportListingDialog } from "@/components/listing/report-listing-dialog";
 import { SellerQuickView } from "@/components/listing/seller-quick-view";
+import ListingActions from "@/components/listing/listing-actions";
 import { ShareListingButton } from "@/components/listing/share-listing-button";
 import { SimilarListings } from "@/components/listing/similar-listings";
 import type { Database } from "@/integrations/supabase/types";
@@ -74,8 +75,7 @@ type SellerRow = {
 
 type ProductImageRow = { storage_path: string; sort_index: number };
 
-const PRODUCT_LISTINGS_TABLE =
-  "product_listings" as unknown as keyof Database["public"]["Tables"];
+const PRODUCT_LISTINGS_TABLE = "product_listings" as unknown as keyof Database["public"]["Tables"];
 const PRODUCT_IMAGES_TABLE = "product_images" as unknown as keyof Database["public"]["Tables"];
 
 function ProductDetailsPage() {
@@ -188,7 +188,7 @@ function ProductDetailsPage() {
       sellerId: product.seller_id,
       productTitle: product.title,
       requestType: "buy",
-      buyerName: user.user_metadata?.full_name || user.email?.split('@')[0] || "Buyer",
+      buyerName: user.user_metadata?.full_name || user.email?.split("@")[0] || "Buyer",
       buyerHostel: user.user_metadata?.hostel_block || null,
     });
   };
@@ -209,7 +209,7 @@ function ProductDetailsPage() {
         requestType: "offer",
         offeredPrice: price,
         message: offerMessage,
-        buyerName: user.user_metadata?.full_name || user.email?.split('@')[0] || "Buyer",
+        buyerName: user.user_metadata?.full_name || user.email?.split("@")[0] || "Buyer",
         buyerHostel: user.user_metadata?.hostel_block || null,
       },
       { onSuccess: () => setOfferOpen(false) },
@@ -318,6 +318,12 @@ function ProductDetailsPage() {
             <div className="flex flex-wrap gap-2">
               <ShareListingButton title={product.title} />
               <ReportListingDialog itemType="product" itemId={product.id} />
+              <ListingActions
+                itemType="product"
+                itemId={product.id}
+                ownerId={product.seller_id}
+                onDeleted={() => navigate({ to: "/" })}
+              />
             </div>
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

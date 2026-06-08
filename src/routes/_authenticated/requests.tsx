@@ -39,15 +39,18 @@ import { cn } from "@/lib/utils";
 
 function useOpenChatOnAccept() {
   const navigate = useNavigate();
-  return useCallback((result: ChatMutationResult | undefined, acceptedMessage: string) => {
-    if (result?.conversationId) {
-      toast.success("Request accepted — opening chat with buyer");
-      navigate({ to: "/chats/$id", params: { id: result.conversationId } });
-      return;
-    }
-    toast.success(acceptedMessage);
-    navigate({ to: "/chats" });
-  }, [navigate]);
+  return useCallback(
+    (result: ChatMutationResult | undefined, acceptedMessage: string) => {
+      if (result?.conversationId) {
+        toast.success("Request accepted — opening chat with buyer");
+        navigate({ to: "/chats/$id", params: { id: result.conversationId } });
+        return;
+      }
+      toast.success(acceptedMessage);
+      navigate({ to: "/chats" });
+    },
+    [navigate],
+  );
 }
 
 export const Route = createFileRoute("/_authenticated/requests")({
@@ -66,7 +69,13 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: "bg-slate-100 text-slate-500",
 };
 
-function RoleToggle({ view, onChange }: { view: "seller" | "buyer"; onChange: (v: "seller" | "buyer") => void }) {
+function RoleToggle({
+  view,
+  onChange,
+}: {
+  view: "seller" | "buyer";
+  onChange: (v: "seller" | "buyer") => void;
+}) {
   return (
     <div className="flex w-fit rounded-full border bg-muted/40 p-0.5">
       {(["seller", "buyer"] as const).map((v) => (
@@ -138,8 +147,12 @@ function ProductRequestsTab({
   role: "seller" | "buyer";
   formatInr: (n: number) => string;
 }) {
-  const { data: sellerReqs = [], isLoading: ls } = useSellerProductRequests(role === "seller" ? userId : undefined);
-  const { data: buyerReqs = [], isLoading: lb } = useBuyerProductRequests(role === "buyer" ? userId : undefined);
+  const { data: sellerReqs = [], isLoading: ls } = useSellerProductRequests(
+    role === "seller" ? userId : undefined,
+  );
+  const { data: buyerReqs = [], isLoading: lb } = useBuyerProductRequests(
+    role === "buyer" ? userId : undefined,
+  );
   const update = useUpdateProductRequest();
   const openChat = useOpenChatOnAccept();
   const requests = role === "seller" ? sellerReqs : buyerReqs;
@@ -225,16 +238,23 @@ function ProductRequestsTab({
           coverUrl={req.product?.coverUrl}
           counterparty={role === "seller" ? req.buyer : req.seller}
           counterpartyLabel={role === "seller" ? "Buyer" : "Seller"}
-          message={req.message}
+          message={req.message ?? undefined}
           extra={req.request_type === "offer" ? "Type: Offer" : "Type: Buy Now"}
           actions={
             <>
               {role === "seller" && req.status === "pending" && (
                 <div className="flex gap-2">
-                  <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleAccept(req)}>
+                  <Button
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => handleAccept(req)}
+                  >
                     Accept
                   </Button>
-                  <Button variant="destructive" className="flex-1" onClick={() => handleReject(req)}>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={() => handleReject(req)}
+                  >
                     Reject
                   </Button>
                 </div>
@@ -266,8 +286,12 @@ function RentalRequestsTab({
   role: "seller" | "buyer";
   formatInr: (n: number) => string;
 }) {
-  const { data: sellerReqs = [], isLoading: ls } = useSellerRentalRequests(role === "seller" ? userId : undefined);
-  const { data: buyerReqs = [], isLoading: lb } = useBuyerRentalRequests(role === "buyer" ? userId : undefined);
+  const { data: sellerReqs = [], isLoading: ls } = useSellerRentalRequests(
+    role === "seller" ? userId : undefined,
+  );
+  const { data: buyerReqs = [], isLoading: lb } = useBuyerRentalRequests(
+    role === "buyer" ? userId : undefined,
+  );
   const update = useUpdateRentalRequest();
   const openChat = useOpenChatOnAccept();
   const requests = role === "seller" ? sellerReqs : buyerReqs;
@@ -335,15 +359,26 @@ function RentalRequestsTab({
             counterparty={role === "seller" ? req.buyer : req.seller}
             counterpartyLabel={role === "seller" ? "Requester" : "Seller"}
             message={parsed.personalMessage || undefined}
-            extra={[parsed.duration, parsed.pickupDate, parsed.pickupLocation].filter(Boolean).join(" · ") || undefined}
+            extra={
+              [parsed.duration, parsed.pickupDate, parsed.pickupLocation]
+                .filter(Boolean)
+                .join(" · ") || undefined
+            }
             actions={
               <>
                 {role === "seller" && req.status === "pending" && (
                   <div className="flex gap-2">
-                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleAccept(req)}>
+                    <Button
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                      onClick={() => handleAccept(req)}
+                    >
                       Accept
                     </Button>
-                    <Button variant="destructive" className="flex-1" onClick={() => handleReject(req)}>
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={() => handleReject(req)}
+                    >
                       Reject
                     </Button>
                   </div>
@@ -363,16 +398,32 @@ function RentalRequestsTab({
 }
 
 function FoodOrdersTab({ userId, role }: { userId: string | undefined; role: "seller" | "buyer" }) {
-  const { data: sellerOrders = [], isLoading: ls } = useSellerFoodOrders(role === "seller" ? userId : undefined);
-  const { data: buyerOrders = [], isLoading: lb } = useBuyerFoodOrders(role === "buyer" ? userId : undefined);
+  const { data: sellerOrders = [], isLoading: ls } = useSellerFoodOrders(
+    role === "seller" ? userId : undefined,
+  );
+  const { data: buyerOrders = [], isLoading: lb } = useBuyerFoodOrders(
+    role === "buyer" ? userId : undefined,
+  );
   const update = useUpdateFoodOrder();
   const openChat = useOpenChatOnAccept();
   const orders = role === "seller" ? sellerOrders : buyerOrders;
   const isLoading = role === "seller" ? ls : lb;
 
-  const act = (order: FoodOrderRow, status: FoodOrderRow["status"], title: string, desc: string, notify: string) => {
+  const act = (
+    order: FoodOrderRow,
+    status: FoodOrderRow["status"],
+    title: string,
+    desc: string,
+    notify: string,
+  ) => {
     update.mutate(
-      { orderId: order.id, status, notifyUserId: notify, notificationTitle: title, notificationDescription: desc },
+      {
+        orderId: order.id,
+        status,
+        notifyUserId: notify,
+        notificationTitle: title,
+        notificationDescription: desc,
+      },
       {
         onSuccess: (result) => {
           if (status === "accepted") openChat(result, title);
@@ -415,7 +466,13 @@ function FoodOrdersTab({ userId, role }: { userId: string | undefined; role: "se
                     variant="destructive"
                     className="flex-1"
                     onClick={() =>
-                      act(order, "rejected", "Food Order Rejected", "Your food order was rejected.", order.buyer_id)
+                      act(
+                        order,
+                        "rejected",
+                        "Food Order Rejected",
+                        "Your food order was rejected.",
+                        order.buyer_id,
+                      )
                     }
                   >
                     Reject
@@ -426,7 +483,13 @@ function FoodOrdersTab({ userId, role }: { userId: string | undefined; role: "se
                 <Button
                   className="w-full"
                   onClick={() =>
-                    act(order, "completed", "Order Completed", "Your food order is complete.", order.buyer_id)
+                    act(
+                      order,
+                      "completed",
+                      "Order Completed",
+                      "Your food order is complete.",
+                      order.buyer_id,
+                    )
                   }
                 >
                   Mark Completed
@@ -457,17 +520,39 @@ function FoodOrdersTab({ userId, role }: { userId: string | undefined; role: "se
   );
 }
 
-function NotesRequestsTab({ userId, role }: { userId: string | undefined; role: "seller" | "buyer" }) {
-  const { data: sellerReqs = [], isLoading: ls } = useSellerNotesPurchases(role === "seller" ? userId : undefined);
-  const { data: buyerReqs = [], isLoading: lb } = useBuyerNotesPurchases(role === "buyer" ? userId : undefined);
+function NotesRequestsTab({
+  userId,
+  role,
+}: {
+  userId: string | undefined;
+  role: "seller" | "buyer";
+}) {
+  const { data: sellerReqs = [], isLoading: ls } = useSellerNotesPurchases(
+    role === "seller" ? userId : undefined,
+  );
+  const { data: buyerReqs = [], isLoading: lb } = useBuyerNotesPurchases(
+    role === "buyer" ? userId : undefined,
+  );
   const update = useUpdateNotesPurchase();
   const openChat = useOpenChatOnAccept();
   const requests = role === "seller" ? sellerReqs : buyerReqs;
   const isLoading = role === "seller" ? ls : lb;
 
-  const act = (req: NotesPurchaseRow, status: NotesPurchaseRow["status"], title: string, desc: string, notify: string) => {
+  const act = (
+    req: NotesPurchaseRow,
+    status: NotesPurchaseRow["status"],
+    title: string,
+    desc: string,
+    notify: string,
+  ) => {
     update.mutate(
-      { requestId: req.id, status, notifyUserId: notify, notificationTitle: title, notificationDescription: desc },
+      {
+        requestId: req.id,
+        status,
+        notifyUserId: notify,
+        notificationTitle: title,
+        notificationDescription: desc,
+      },
       {
         onSuccess: (result) => {
           if (status === "accepted") openChat(result, title);
@@ -510,7 +595,13 @@ function NotesRequestsTab({ userId, role }: { userId: string | undefined; role: 
                     variant="destructive"
                     className="flex-1"
                     onClick={() =>
-                      act(req, "rejected", "Notes Request Rejected", "Your notes request was rejected.", req.buyer_id)
+                      act(
+                        req,
+                        "rejected",
+                        "Notes Request Rejected",
+                        "Your notes request was rejected.",
+                        req.buyer_id,
+                      )
                     }
                   >
                     Reject
@@ -521,7 +612,13 @@ function NotesRequestsTab({ userId, role }: { userId: string | undefined; role: 
                 <Button
                   className="w-full"
                   onClick={() =>
-                    act(req, "completed", "Deal Completed", "Your notes purchase is complete.", req.buyer_id)
+                    act(
+                      req,
+                      "completed",
+                      "Deal Completed",
+                      "Your notes purchase is complete.",
+                      req.buyer_id,
+                    )
                   }
                 >
                   Mark Completed
@@ -587,14 +684,21 @@ function RequestCard({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-semibold">{title}</h3>
-              <Badge className={cn("text-[10px] capitalize", STATUS_STYLES[status])}>{status}</Badge>
+              <Badge className={cn("text-[10px] capitalize", STATUS_STYLES[status])}>
+                {status}
+              </Badge>
             </div>
             {price && <p className="text-sm text-primary">{price}</p>}
             {extra && <p className="text-xs text-muted-foreground">{extra}</p>}
             {counterparty && (
               <div className="mt-1 flex items-center gap-2">
                 <Avatar className="h-6 w-6">
-                  {counterparty.avatar_url ? <AvatarImage src={counterparty.avatar_url} alt="" /> : null}
+                  {counterparty.avatar_url ? (
+                    <AvatarImage
+                      src={`${counterparty.avatar_url}${(counterparty.avatar_url as string).includes("?") ? "&" : "?"}t=${Date.now()}`}
+                      alt=""
+                    />
+                  ) : null}
                   <AvatarFallback className="text-[9px]">
                     {counterparty.display_name.slice(0, 2).toUpperCase()}
                   </AvatarFallback>

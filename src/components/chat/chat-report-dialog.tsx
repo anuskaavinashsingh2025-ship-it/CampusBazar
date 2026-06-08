@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { Flag } from "lucide-react";
 
-import {
-  useSubmitChatReport,
-  type ChatReportReason,
-  type ChatReportTarget,
-} from "@/lib/chat";
+import { useSubmitChatReport, type ChatReportReason, type ChatReportTarget } from "@/lib/chat";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

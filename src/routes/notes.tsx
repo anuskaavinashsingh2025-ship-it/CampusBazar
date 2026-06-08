@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import ListingActions from "@/components/listing/listing-actions";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -217,6 +218,20 @@ function NotesHubPage() {
                     onClick={() => navigate({ to: "/notes/$id", params: { id: l.id } })}
                   >
                     <CardContent className="space-y-2 p-4">
+                      <div
+                        className="absolute right-2 top-2 z-20"
+                        onClick={(e) => e.stopPropagation()}
+                        role="presentation"
+                      >
+                        <ListingActions
+                          itemType="notes"
+                          itemId={l.id}
+                          ownerId={l.seller_id}
+                          onEdit={() =>
+                            window.location.assign(`/upload-notes?edit=${l.id}`)
+                          }
+                        />
+                      </div>
                       <div className="text-sm font-semibold">{l.title}</div>
                       <div className="text-xs text-muted-foreground line-clamp-2">
                         {l.description}

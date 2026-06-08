@@ -69,10 +69,14 @@ async function enrichProductRequests(rows: ProductRequestRow[]): Promise<Product
     }
   }
 
-  const profileMap = new Map(
+  const profileMap = new Map<string, { display_name: string; avatar_url: string | null; hostel_block: string | null }>(
     (profiles ?? []).map((p: { id: string; full_name: string | null; avatar_url: string | null; hostel_block: string | null }) => [
       p.id,
-      { display_name: p.full_name ?? "Student", avatar_url: p.avatar_url, hostel_block: p.hostel_block },
+      {
+        display_name: p.full_name ?? "Student",
+        avatar_url: p.avatar_url,
+        hostel_block: p.hostel_block,
+      },
     ]),
   );
 
@@ -178,7 +182,9 @@ export function useCreateProductRequest() {
       if (error) throw error;
 
       const actionLabel = input.requestType === "offer" ? "offer" : "purchase request";
-      const buyerDetails = input.buyerName ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}` : "";
+      const buyerDetails = input.buyerName
+        ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}`
+        : "";
       await createNotification({
         userId: input.sellerId,
         title: "New Purchase Request",
@@ -217,7 +223,10 @@ export function useUpdateProductRequest() {
       notificationDescription?: string;
       markSold?: boolean;
     }): Promise<ChatMutationResult> => {
-      console.log("[useUpdateProductRequest] Called with:", { requestId: input.requestId, status: input.status });
+      console.log("[useUpdateProductRequest] Called with:", {
+        requestId: input.requestId,
+        status: input.status,
+      });
       let conversationId: string | undefined;
       const { error } = await supabase
         .from(REQUESTS_TABLE)
@@ -249,7 +258,10 @@ export function useUpdateProductRequest() {
             metadata: { requestId: input.requestId, productId: input.productId },
           });
         } catch (notifErr) {
-          console.error("[useUpdateProductRequest] Notification creation failed (non-blocking):", notifErr);
+          console.error(
+            "[useUpdateProductRequest] Notification creation failed (non-blocking):",
+            notifErr,
+          );
         }
       }
 

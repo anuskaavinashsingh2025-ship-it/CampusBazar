@@ -44,8 +44,7 @@ export type NotificationPreferences = {
 const NOTIFICATIONS_TABLE = "notifications" as unknown as keyof Database["public"]["Tables"];
 const PREFS_TABLE = "notification_preferences" as unknown as keyof Database["public"]["Tables"];
 
-export const notificationsQueryKey = (userId: string | null) =>
-  ["notifications", userId] as const;
+export const notificationsQueryKey = (userId: string | null) => ["notifications", userId] as const;
 
 export const notificationPrefsQueryKey = (userId: string | null) =>
   ["notification_preferences", userId] as const;

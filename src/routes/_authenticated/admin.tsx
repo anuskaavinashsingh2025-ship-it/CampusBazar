@@ -6,15 +6,33 @@ import { Star, Search, Trash2, CheckCircle2, Clock, MessageCircle } from "lucide
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { useAllFeedback, useUpdateFeedbackStatus, useDeleteFeedback, FEEDBACK_CATEGORIES, type FeedbackStatus } from "@/lib/feedback";
+import {
+  useAllFeedback,
+  useUpdateFeedbackStatus,
+  useDeleteFeedback,
+  FEEDBACK_CATEGORIES,
+  type FeedbackStatus,
+} from "@/lib/feedback";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -116,15 +134,24 @@ function AdminPortalPage() {
   const filteredFeedback = useMemo(() => {
     if (!allFeedback) return [];
     return allFeedback.filter((feedback) => {
-      const matchesSearch = 
+      const matchesSearch =
         feedback.message.toLowerCase().includes(feedbackSearch.toLowerCase()) ||
         feedback.category.toLowerCase().includes(feedbackSearch.toLowerCase());
-      const matchesStatus = feedbackStatusFilter === "all" || feedback.status === feedbackStatusFilter;
-      const matchesCategory = feedbackCategoryFilter === "all" || feedback.category === feedbackCategoryFilter;
-      const matchesRating = feedbackRatingFilter === "all" || feedback.rating === parseInt(feedbackRatingFilter);
+      const matchesStatus =
+        feedbackStatusFilter === "all" || feedback.status === feedbackStatusFilter;
+      const matchesCategory =
+        feedbackCategoryFilter === "all" || feedback.category === feedbackCategoryFilter;
+      const matchesRating =
+        feedbackRatingFilter === "all" || feedback.rating === parseInt(feedbackRatingFilter);
       return matchesSearch && matchesStatus && matchesCategory && matchesRating;
     });
-  }, [allFeedback, feedbackSearch, feedbackStatusFilter, feedbackCategoryFilter, feedbackRatingFilter]);
+  }, [
+    allFeedback,
+    feedbackSearch,
+    feedbackStatusFilter,
+    feedbackCategoryFilter,
+    feedbackRatingFilter,
+  ]);
 
   const handleStatusUpdate = (feedbackId: string, status: FeedbackStatus) => {
     updateFeedbackStatus.mutate({
@@ -145,11 +172,23 @@ function AdminPortalPage() {
   const getStatusBadge = (status: FeedbackStatus) => {
     switch (status) {
       case "submitted":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Submitted</Badge>;
+        return (
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            Submitted
+          </Badge>
+        );
       case "under_review":
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Under Review</Badge>;
+        return (
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+            Under Review
+          </Badge>
+        );
       case "resolved":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Resolved</Badge>;
+        return (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            Resolved
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -366,9 +405,7 @@ function AdminPortalPage() {
 
           {/* Feedback List */}
           {filteredFeedback.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No feedback found.
-            </div>
+            <div className="py-8 text-center text-sm text-muted-foreground">No feedback found.</div>
           ) : (
             <div className="space-y-3">
               {filteredFeedback.map((feedback: any) => (
@@ -394,15 +431,13 @@ function AdminPortalPage() {
                           {new Date(feedback.created_at).toLocaleString()}
                         </span>
                       </div>
-                      
+
                       <div className="mb-2">
-                        <span className="text-sm font-medium">
-                          User ID: {feedback.user_id}
-                        </span>
+                        <span className="text-sm font-medium">User ID: {feedback.user_id}</span>
                       </div>
-                      
+
                       <p className="text-sm text-gray-700">{feedback.message}</p>
-                      
+
                       {feedback.screenshot_url && (
                         <img
                           src={feedback.screenshot_url}
@@ -410,18 +445,22 @@ function AdminPortalPage() {
                           className="mt-2 h-24 w-24 rounded border border-gray-300 object-cover"
                         />
                       )}
-                      
+
                       {feedback.admin_notes && (
                         <div className="mt-2 rounded bg-blue-50 p-2 text-sm text-blue-700">
                           <span className="font-semibold">Admin Note:</span> {feedback.admin_notes}
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="flex flex-col gap-2">
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" onClick={() => setSelectedFeedbackId(feedback.id)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedFeedbackId(feedback.id)}
+                          >
                             Add Notes
                           </Button>
                         </DialogTrigger>
@@ -453,7 +492,7 @@ function AdminPortalPage() {
                           </div>
                         </DialogContent>
                       </Dialog>
-                      
+
                       <Button
                         size="sm"
                         variant="destructive"

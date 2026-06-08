@@ -69,7 +69,7 @@ function UserProfilePage() {
       setFullName(profile.full_name ?? "");
       setHostelType(profile.hostel_type ?? "");
       setHostelBlock(profile.hostel_block ?? "");
-      setOtherHostelBlock(profile.hostel_block === "Other" ? profile.hostel_block ?? "" : "");
+      setOtherHostelBlock(profile.hostel_block === "Other" ? (profile.hostel_block ?? "") : "");
       setRoomNumber(profile.room_number ?? "");
       setPhoneNumber(profile.phone_number ?? "");
       setEmail(profile.email ?? "");
@@ -134,11 +134,13 @@ function UserProfilePage() {
     try {
       const ext = file.name.split(".").pop() ?? "jpg";
       const path = `${user.id}/avatar.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from("profile-avatars")
+      console.log("[AVATAR BUCKET]", "avatars");
+      const { error: uploadErr, data: uploadData } = await supabase.storage
+        .from("avatars")
         .upload(path, file, { upsert: true, contentType: file.type });
+      console.log("[AVATAR UPLOAD RESULT]", { data: uploadData, error: uploadErr });
       if (uploadErr) throw uploadErr;
-      const { data } = supabase.storage.from("profile-avatars").getPublicUrl(path);
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
       const url = `${data.publicUrl}?t=${Date.now()}`;
       setAvatarUrl(url);
       const { error } = await supabase
@@ -196,13 +198,14 @@ function UserProfilePage() {
     );
   }
 
-  const quickLinks = [
+  type QuickLink = { label: string; icon: any; to?: string; count?: number | null };
+  const quickLinks: QuickLink[] = [
     { label: "Wishlist", icon: Heart, to: "/wishlist", count: wishlistCount },
     { label: "My Orders", icon: ShoppingBag, to: "/requests", count: null },
     { label: "My Chats", icon: MessageSquare, to: "/chats", count: unreadChats },
     { label: "Notifications", icon: Bell, to: "/notifications", count: unreadNotifications },
     { label: "Settings", icon: Settings, to: "/notification-settings", count: null },
-  ] as const;
+  ];
 
   const stats = [
     { label: "Active listings", value: productCount, icon: Package },
@@ -224,7 +227,12 @@ function UserProfilePage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
               <div className="relative -mt-12 sm:-mt-14">
                 <Avatar className="h-24 w-24 border-4 border-card shadow-lg sm:h-28 sm:w-28">
-                  {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName} /> : null}
+                  {avatarUrl ? (
+                    <AvatarImage
+                      src={`${avatarUrl}${avatarUrl.includes("?") ? "&" : "?"}t=${Date.now()}`}
+                      alt={fullName}
+                    />
+                  ) : null}
                   <AvatarFallback className="bg-primary text-2xl text-primary-foreground">
                     {initials}
                   </AvatarFallback>
@@ -255,7 +263,9 @@ function UserProfilePage() {
               </div>
               <div className="pb-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-bold sm:text-2xl">{profile?.full_name ?? "Student"}</h1>
+                  <h1 className="text-xl font-bold sm:text-2xl">
+                    {profile?.full_name ?? "Student"}
+                  </h1>
                   {profile?.is_profile_complete && (
                     <Badge className="gap-1 bg-emerald-500 hover:bg-emerald-500">
                       <BadgeCheck className="h-3 w-3" />
@@ -265,7 +275,9 @@ function UserProfilePage() {
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{profile?.email}</p>
                 {profile?.hostel_block && (
-                  <p className="text-sm text-muted-foreground">{profile.hostel_type} - {profile.hostel_block}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {profile.hostel_type} - {profile.hostel_block}
+                  </p>
                 )}
                 {profile?.room_number && (
                   <p className="text-sm text-muted-foreground">Room {profile.room_number}</p>
@@ -368,7 +380,8 @@ function UserProfilePage() {
           <DialogHeader>
             <DialogTitle>Edit profile</DialogTitle>
             <DialogDescription>
-              Your private account details. Hostel block is never shown on your public seller profile.
+              Your private account details. Hostel block is never shown on your public seller
+              profile.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -420,11 +433,13 @@ function UserProfilePage() {
                   <option value="" disabled>
                     Select your block
                   </option>
-                  {(hostelType === "Ladies Hostel" ? LADIES_HOSTEL_BLOCKS : MENS_HOSTEL_BLOCKS).map((block) => (
-                    <option key={block} value={block}>
-                      {block}
-                    </option>
-                  ))}
+                  {(hostelType === "Ladies Hostel" ? LADIES_HOSTEL_BLOCKS : MENS_HOSTEL_BLOCKS).map(
+                    (block) => (
+                      <option key={block} value={block}>
+                        {block}
+                      </option>
+                    ),
+                  )}
                 </select>
               </div>
             )}

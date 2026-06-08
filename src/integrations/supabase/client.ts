@@ -2,7 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
-function createSupabaseClient() {
+function createSupabaseClient(): any {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -14,9 +14,36 @@ function createSupabaseClient() {
       ...(!SUPABASE_URL ? ["SUPABASE_URL"] : []),
       ...(!SUPABASE_PUBLISHABLE_KEY ? ["SUPABASE_PUBLISHABLE_KEY"] : []),
     ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(", ")}. Connect Supabase in Lovable Cloud.`;
+    const message = `Missing Supabase environment variable(s): ${missing.join(", ")}. Supabase client will be a noop stub.`;
     console.error(`[Supabase] ${message}`);
-    throw new Error(message);
+
+    // Return a stubbed client with minimal behavior so runtime code doesn't try to access
+    // undefined properties. The methods return Promises that resolve with a descriptive error.
+    const stubResponse = async () => ({ data: null, error: new Error(message) });
+
+    const stubBuilder = () => ({
+      select: () => ({
+        eq: () => ({ order: () => ({ limit: () => stubResponse() }) }),
+        order: () => ({ limit: () => stubResponse() }),
+        limit: () => stubResponse(),
+      }),
+      eq: () => ({ order: () => ({ limit: () => stubResponse() }) }),
+      order: () => ({ limit: () => stubResponse() }),
+      limit: () => stubResponse(),
+    });
+
+    const stubClient = {
+      from: (_table: string) => stubBuilder(),
+      storage: {
+        from: (_bucket: string) => ({
+          getPublicUrl: (_path: string) => ({
+            data: { publicUrl: "" },
+          }),
+        }),
+      },
+  } as unknown as any;
+
+    return stubClient;
   }
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {

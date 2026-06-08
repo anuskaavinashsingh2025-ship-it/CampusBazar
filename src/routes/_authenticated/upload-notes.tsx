@@ -77,6 +77,54 @@ function UploadNotesPage() {
     return user?.email ?? "seller";
   }, [profile?.full_name, user?.email]);
 
+  const [editId, setEditId] = useState<string | null>(null);
+
+  // Prefill when editing via ?edit=<id>
+  useMemo(() => {
+    const search = new URLSearchParams(window.location.search);
+    const id = search.get("edit");
+    if (!id) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from(NOTES_LISTINGS_TABLE)
+        .select(
+          "id,listing_type,title,description,category,subject,faculty,semester,branch,daily_rental_price,rental_duration_days,condition,is_digital,is_free,status,seller_id",
+        )
+        .eq("id", id)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      setEditId(String(data.id));
+      setTitle(String(data.title ?? ""));
+      setDescription(String(data.description ?? ""));
+      setCategory((data.category as any) ?? categories[0]);
+      setSubject(String(data.subject ?? ""));
+      setFaculty(String(data.faculty ?? ""));
+      setSemester(String(data.semester ?? ""));
+      setBranch(String(data.branch ?? ""));
+      setIsDigital(Boolean(data.is_digital));
+      setIsFree(Boolean(data.is_free));
+      setDailyRentalPrice(String(data.daily_rental_price ?? ""));
+      setRentalDurationDays(String(data.rental_duration_days ?? ""));
+      setCondition((data.condition as any) ?? "Good");
+
+      const { data: imgs } = await supabase
+        .from(NOTES_ASSETS_TABLE)
+        .select("storage_path,sort_index")
+        .eq("listing_id", id)
+        .order("sort_index", { ascending: true });
+      if (!cancelled && imgs?.length) {
+        const previews = imgs.map((r: any) =>
+          supabase.storage.from("notes-assets").getPublicUrl(r.storage_path).data.publicUrl,
+        );
+        // Not storing previews in state for now; new uploads will replace images when provided.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<(typeof categories)[number]>(categories[0]);
@@ -145,39 +193,50 @@ function UploadNotesPage() {
         status: "available",
       };
 
-      const { data: inserted, error: insertErr } = await supabase
-        .from(NOTES_LISTINGS_TABLE)
-        .insert(insertPayload)
-        .select("id")
-        .single();
+      let listingId = editId;
+      if (listingId) {
+        const { error } = await supabase
+          .from(NOTES_LISTINGS_TABLE)
+          .update(insertPayload as never)
+          .eq("id", listingId)
+          .eq("seller_id", user.id);
+        if (error) throw error;
+      } else {
+        const { data: inserted, error: insertErr } = await supabase
+          .from(NOTES_LISTINGS_TABLE)
+          .insert(insertPayload)
+          .select("id")
+          .single();
+        if (insertErr) throw insertErr;
+        listingId = inserted.id as string;
+        setEditId(listingId);
+      }
 
-      if (insertErr) throw insertErr;
-      const listingId = inserted.id as string;
-
-      const bucket = "notes-assets";
-      const images = previewImages.slice(0, 5);
-      for (let i = 0; i < images.length; i++) {
-        const file = images[i];
-        const objectName = `${listingId}/${i}-${file.name.replaceAll("/", "-")}`;
-        const { error: imgUploadErr } = await supabase.storage
-          .from(bucket)
-          .upload(objectName, file, {
-            upsert: false,
+      if (previewImages.length > 0) {
+        await supabase.from(NOTES_ASSETS_TABLE).delete().eq("listing_id", listingId as never);
+        const bucket = "notes-assets";
+        const images = previewImages.slice(0, 5);
+        for (let i = 0; i < images.length; i++) {
+          const file = images[i];
+          const objectName = `${listingId}/${i}-${file.name.replaceAll("/", "-")}`;
+          const { error: imgUploadErr } = await supabase.storage.from(bucket).upload(objectName, file, {
+            upsert: true,
             contentType: file.type,
           });
-        if (imgUploadErr) throw imgUploadErr;
+          if (imgUploadErr) throw imgUploadErr;
 
-        const { error: imgMetaErr } = await supabase.from(NOTES_ASSETS_TABLE).insert({
-          listing_id: listingId,
-          kind: "image",
-          storage_path: objectName,
-          sort_index: i,
-        } satisfies NotesAssetInsertable);
-        if (imgMetaErr) throw imgMetaErr;
+          const { error: imgMetaErr } = await supabase.from(NOTES_ASSETS_TABLE).insert({
+            listing_id: listingId,
+            kind: "image",
+            storage_path: objectName,
+            sort_index: i,
+          } satisfies NotesAssetInsertable);
+          if (imgMetaErr) throw imgMetaErr;
+        }
       }
 
       await queryClient.invalidateQueries({ queryKey: ["notes"] });
-      toast.success("Notes uploaded!");
+      toast.success(listingId && editId ? "Listing updated!" : "Notes uploaded!");
       navigate({ to: "/notes/$id", params: { id: listingId } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not upload notes");

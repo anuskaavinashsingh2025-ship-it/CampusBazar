@@ -23,6 +23,7 @@ import { ReportListingDialog } from "@/components/listing/report-listing-dialog"
 import { SellerQuickView } from "@/components/listing/seller-quick-view";
 import { ShareListingButton } from "@/components/listing/share-listing-button";
 import { SimilarListings } from "@/components/listing/similar-listings";
+import ListingActions from "@/components/listing/listing-actions";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -197,7 +198,7 @@ function NotesDetailsPage() {
         sellerId: listing.seller_id,
         listingTitle: listing.title,
         message,
-        buyerName: user.user_metadata?.full_name || user.email?.split('@')[0] || "Buyer",
+        buyerName: user.user_metadata?.full_name || user.email?.split("@")[0] || "Buyer",
         buyerHostel: user.user_metadata?.hostel_block || null,
       },
       { onSuccess: () => setRequestOpen(false) },
@@ -217,7 +218,12 @@ function NotesDetailsPage() {
       <div className="min-h-screen bg-background">
         <header className="border-b bg-card/90 backdrop-blur">
           <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
-            <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate({ to: "/notes" })}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back"
+              onClick={() => navigate({ to: "/notes" })}
+            >
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </div>
@@ -229,14 +235,18 @@ function NotesDetailsPage() {
     );
   }
 
-  const buyLabel =
-    listing.listing_type === "sell" ? "Buy Notes" : "Request Notes";
+  const buyLabel = listing.listing_type === "sell" ? "Buy Notes" : "Request Notes";
 
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate({ to: "/notes" })}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Back"
+            onClick={() => navigate({ to: "/notes" })}
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Link to="/" className="flex items-center gap-2">
@@ -297,6 +307,12 @@ function NotesDetailsPage() {
             <div className="flex flex-wrap gap-2">
               <ShareListingButton title={listing.title} />
               <ReportListingDialog itemType="notes" itemId={listing.id} />
+              <ListingActions
+                itemType="notes"
+                itemId={listing.id}
+                ownerId={listing.seller_id}
+                onDeleted={() => navigate({ to: "/notes" })}
+              />
             </div>
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

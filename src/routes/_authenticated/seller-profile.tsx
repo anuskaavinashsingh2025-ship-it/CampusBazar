@@ -51,7 +51,7 @@ function SellerProfileEditPage() {
       setFullName(profile.full_name ?? "");
       setHostelType(profile.hostel_type ?? "");
       setHostelBlock(profile.hostel_block ?? "");
-      setOtherHostelBlock(profile.hostel_block === "Other" ? profile.hostel_block ?? "" : "");
+      setOtherHostelBlock(profile.hostel_block === "Other" ? (profile.hostel_block ?? "") : "");
       setRoomNumber(profile.room_number ?? "");
       setPhoneNumber(profile.phone_number ?? "");
       setAvatarUrl(profile.avatar_url ?? "");
@@ -82,7 +82,10 @@ function SellerProfileEditPage() {
           });
       if (error) throw error;
       await refreshProfile();
+      // Invalidate seller-related queries so storefronts and cards pick up the new avatar
       await queryClient.invalidateQueries({ queryKey: ["seller_profile_self", user.id] });
+      await queryClient.invalidateQueries({ queryKey: ["seller", profile?.id] });
+      await queryClient.invalidateQueries({ queryKey: ["seller_products", user.id] });
       toast.success("Profile saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save profile");
@@ -175,11 +178,13 @@ function SellerProfileEditPage() {
                   <option value="" disabled>
                     Select your block
                   </option>
-                  {(hostelType === "Ladies Hostel" ? LADIES_HOSTEL_BLOCKS : MENS_HOSTEL_BLOCKS).map((block) => (
-                    <option key={block} value={block}>
-                      {block}
-                    </option>
-                  ))}
+                  {(hostelType === "Ladies Hostel" ? LADIES_HOSTEL_BLOCKS : MENS_HOSTEL_BLOCKS).map(
+                    (block) => (
+                      <option key={block} value={block}>
+                        {block}
+                      </option>
+                    ),
+                  )}
                 </select>
               </div>
             )}

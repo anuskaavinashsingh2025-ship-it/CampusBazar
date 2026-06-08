@@ -3,16 +3,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { GraduationCap, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { bootstrapUserAccount } from "@/lib/supabase-account";
-import {
-  getSavedLogins,
-  removeSavedLogin,
-  saveLogin,
-  type SavedLogin,
-} from "@/lib/saved-login";
+import { getSavedLogins, removeSavedLogin, saveLogin, type SavedLogin } from "@/lib/saved-login";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -129,23 +123,34 @@ function LoginPage() {
   const handleGoogle = async (savedEmail?: string) => {
     setGoogleLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/`,
-        extraParams: savedEmail ? { login_hint: savedEmail } : undefined,
+      // Use Supabase client directly for OAuth. This will redirect the browser
+      // to Google's consent screen. Supabase is configured with
+      // detectSessionInUrl so the app will pick up the session on return.
+      const options: Record<string, unknown> = {
+        redirectTo: `${window.location.origin}/`,
+      };
+      if (savedEmail) options.queryParams = { login_hint: savedEmail };
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options,
       });
-      if (result.error) throw result.error;
-      if (!result.redirected) {
-        toast.success("Welcome!");
-        await navigateAfterAuth();
-        setGoogleLoading(false);
-      }
+
+      if (error) throw error;
+
+      // For redirect flows, the browser navigates away so code after this
+      // typically won't run. If we land here without a redirect, try to
+      // navigate using the existing flow.
+      toast.success("Welcome!");
+      await navigateAfterAuth();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
+    } finally {
       setGoogleLoading(false);
     }
   };
 
-  const useSavedLogin = (saved: SavedLogin) => {
+  const applySavedLogin = (saved: SavedLogin) => {
     if (saved.provider === "google") {
       void handleGoogle(saved.email);
       return;
@@ -176,7 +181,9 @@ function LoginPage() {
           <Card className="mb-4 border-border/60 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Continue with saved account</CardTitle>
-              <CardDescription>Pick an account you&apos;ve used before on this device.</CardDescription>
+              <CardDescription>
+                Pick an account you&apos;ve used before on this device.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {savedLogins.map((saved) => (
@@ -186,7 +193,7 @@ function LoginPage() {
                 >
                   <button
                     type="button"
-                    onClick={() => useSavedLogin(saved)}
+                    onClick={() => applySavedLogin(saved)}
                     className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   >
                     <Avatar className="h-9 w-9">

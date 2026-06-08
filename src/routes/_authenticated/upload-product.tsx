@@ -100,7 +100,9 @@ function UploadProductPage() {
     return user?.email ?? "seller";
   }, [profile?.full_name, user?.email]);
 
-  const defaultLocation = profile?.hostel_block ? `${profile.hostel_block}, VIT Campus` : "VIT Campus";
+  const defaultLocation = profile?.hostel_block
+    ? `${profile.hostel_block}, VIT Campus`
+    : "VIT Campus";
 
   const [step, setStep] = useState<StepId>(1);
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -150,6 +152,52 @@ function UploadProductPage() {
       /* ignore corrupt draft */
     }
   }, []);
+
+  // Pre-fill form when editing an existing listing via ?edit=<id>
+  // Route.useSearch is available on upload-notes; for consistency read from window.location
+  useEffect(() => {
+    const search = new URLSearchParams(window.location.search);
+    const editId = search.get("edit");
+    if (!editId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from(PRODUCT_LISTINGS_TABLE)
+        .select(
+          "id,title,description,category,custom_category,price,condition,is_negotiable,location,urgent_sale,seller_id,status",
+        )
+        .eq("id", editId)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      setDraftId(data.id as string);
+      setTitle(String(data.title ?? ""));
+      setDescription(String(data.description ?? ""));
+      setCategory((data.category as CategoryOption) ?? "");
+      setCustomCategory(String(data.custom_category ?? ""));
+      setPrice(String(data.price ?? ""));
+      setCondition((data.condition as ConditionOption) ?? "Good");
+      setIsNegotiable(Boolean(data.is_negotiable));
+      setLocation(String(data.location ?? defaultLocation));
+      setUrgentSale(Boolean(data.urgent_sale));
+
+      // Load image previews (public URLs) from product_images
+      const { data: imagesRows } = await supabase
+        .from(PRODUCT_IMAGES_TABLE)
+        .select("storage_path,sort_index")
+        .eq("product_id", editId)
+        .order("sort_index", { ascending: true });
+      if (!cancelled && imagesRows?.length) {
+        const previews = imagesRows.map(
+          (r: any) =>
+            supabase.storage.from("product-images").getPublicUrl(r.storage_path).data.publicUrl,
+        );
+        setImagePreviews(previews as string[]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!draftId || !user) return;
@@ -231,7 +279,8 @@ function UploadProductPage() {
 
     const resolvedCategory = (category || "Others") as CategoryOption;
     const resolvedCondition = (condition || "Good") as ConditionOption;
-    const resolvedDescription = description.trim() || title.trim() || "Draft listing — details to be added.";
+    const resolvedDescription =
+      description.trim() || title.trim() || "Draft listing — details to be added.";
     const resolvedPrice = price.trim() ? Number(price) : 0;
     const resolvedLocation = location.trim() || defaultLocation;
 
@@ -409,7 +458,10 @@ function UploadProductPage() {
                 <CardContent className="space-y-5">
                   <div className="space-y-2">
                     <Label>Category</Label>
-                    <Select value={category} onValueChange={(v) => setCategory(v as CategoryOption)}>
+                    <Select
+                      value={category}
+                      onValueChange={(v) => setCategory(v as CategoryOption)}
+                    >
                       <SelectTrigger>
                         <Grid3X3 className="mr-2 h-4 w-4 text-muted-foreground" />
                         <SelectValue placeholder="Select Category" />
@@ -457,7 +509,9 @@ function UploadProductPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="description">Description</Label>
-                      <span className="text-xs text-muted-foreground">{description.length}/500</span>
+                      <span className="text-xs text-muted-foreground">
+                        {description.length}/500
+                      </span>
                     </div>
                     <div className="relative">
                       <FileText className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -559,8 +613,15 @@ function UploadProductPage() {
                 <CardContent className="space-y-5">
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
                     {imagePreviews.map((url, idx) => (
-                      <div key={url} className="relative aspect-square overflow-hidden rounded-xl border">
-                        <img src={url} alt={`Preview ${idx + 1}`} className="h-full w-full object-cover" />
+                      <div
+                        key={url}
+                        className="relative aspect-square overflow-hidden rounded-xl border"
+                      >
+                        <img
+                          src={url}
+                          alt={`Preview ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                        />
                         <button
                           type="button"
                           onClick={() => removeImage(idx)}
@@ -613,13 +674,17 @@ function UploadProductPage() {
               <Card className="border-border/60 shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-lg">Additional Information</CardTitle>
-                  <CardDescription>Optional details to help buyers find your listing.</CardDescription>
+                  <CardDescription>
+                    Optional details to help buyers find your listing.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <div className="flex items-center justify-between rounded-xl border p-4">
                     <div>
                       <p className="font-medium">Urgent sale</p>
-                      <p className="text-sm text-muted-foreground">Show an urgent badge on your listing</p>
+                      <p className="text-sm text-muted-foreground">
+                        Show an urgent badge on your listing
+                      </p>
                     </div>
                     <Switch checked={urgentSale} onCheckedChange={setUrgentSale} />
                   </div>
@@ -650,7 +715,9 @@ function UploadProductPage() {
               <Card className="border-border/60 shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-lg">Review & Publish</CardTitle>
-                  <CardDescription>Confirm everything looks good before going live.</CardDescription>
+                  <CardDescription>
+                    Confirm everything looks good before going live.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="rounded-xl border bg-muted/20 p-4 space-y-3 text-sm">
@@ -685,7 +752,12 @@ function UploadProductPage() {
                       <span className="text-muted-foreground">Photos</span>
                       <div className="mt-2 flex gap-2 overflow-x-auto">
                         {imagePreviews.map((url) => (
-                          <img key={url} src={url} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                          <img
+                            key={url}
+                            src={url}
+                            alt=""
+                            className="h-16 w-16 rounded-lg object-cover"
+                          />
                         ))}
                       </div>
                     </div>
@@ -746,8 +818,8 @@ function UploadProductPage() {
                   </div>
                 ) : (
                   <div className="rounded-xl border border-dashed bg-white/60 p-6 text-center text-sm text-muted-foreground">
-                    Your item preview will appear here. Add details and photos to see how your listing
-                    will look.
+                    Your item preview will appear here. Add details and photos to see how your
+                    listing will look.
                   </div>
                 )}
               </CardContent>

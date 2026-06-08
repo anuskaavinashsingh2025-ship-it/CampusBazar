@@ -9,9 +9,11 @@ A student-only (VIT-verified) campus marketplace for **selling**, **renting**, *
 ## 1. Database Schema (MongoDB)
 
 ### Collections overview
+
 `users`, `sellerProfiles`, `products`, `rentals`, `rentalRequests`, `notes`, `conversations`, `messages`, `wishlists`, `reviews`, `reports`, `notifications`, `categories`, `auditLogs`.
 
 ### 1.1 users (private)
+
 ```
 _id
 email            // unique, must match @vitstudent.ac.in
@@ -30,6 +32,7 @@ createdAt, updatedAt
 ```
 
 ### 1.2 sellerProfiles (public) — auto-created on first listing
+
 ```
 _id
 userId           // ref users (1:1, unique)
@@ -46,6 +49,7 @@ createdAt, updatedAt
 ```
 
 ### 1.3 products (sell items)
+
 ```
 _id
 sellerId         // ref users
@@ -67,6 +71,7 @@ createdAt, updatedAt
 ```
 
 ### 1.4 rentals (separate from products)
+
 ```
 _id
 ownerId          // ref users
@@ -83,6 +88,7 @@ createdAt, updatedAt
 ```
 
 ### 1.5 rentalRequests
+
 ```
 _id
 rentalId         // ref rentals
@@ -95,6 +101,7 @@ createdAt, updatedAt
 ```
 
 ### 1.6 notes (academic PDFs)
+
 ```
 _id
 uploaderId       // ref users
@@ -108,6 +115,7 @@ createdAt, updatedAt
 ```
 
 ### 1.7 conversations
+
 ```
 _id
 participants[]   // [userId, userId]
@@ -120,6 +128,7 @@ createdAt
 ```
 
 ### 1.8 messages
+
 ```
 _id
 conversationId
@@ -131,6 +140,7 @@ createdAt
 ```
 
 ### 1.9 wishlists
+
 ```
 _id
 userId
@@ -141,6 +151,7 @@ createdAt
 ```
 
 ### 1.10 reviews (seller reputation)
+
 ```
 _id
 sellerId         // ref users (the seller being reviewed)
@@ -154,6 +165,7 @@ createdAt
 ```
 
 ### 1.11 reports (moderation)
+
 ```
 _id
 reporterId
@@ -168,6 +180,7 @@ createdAt
 ```
 
 ### 1.12 notifications
+
 ```
 _id
 userId
@@ -179,16 +192,19 @@ createdAt
 ```
 
 ### 1.13 categories
+
 ```
 _id, key, label, type ("sell"|"rent"|"both"), icon, isCustom, usageCount
 ```
 
 ### 1.14 auditLogs (admin actions)
+
 ```
 _id, actorId, action, targetType, targetId, meta, createdAt
 ```
 
 ### Relationships (summary)
+
 ```
 users 1───1 sellerProfiles
 users 1───* products / rentals / notes
@@ -205,6 +221,7 @@ sellerProfiles 1──* reviews(received)  -> ratingAvg denormalized
 Base: `/api/v1`. Auth header: `Authorization: Bearer <jwt>`.
 
 ### Auth
+
 ```
 POST /auth/google              // Google OAuth, enforce @vitstudent.ac.in
 POST /auth/signup              // email+pwd (VIT domain only)
@@ -217,6 +234,7 @@ POST /auth/complete-profile    // fullName + hostelBlock -> isProfileComplete=tr
 ```
 
 ### Products (sell)
+
 ```
 GET    /products                       // list + filters (category, price, condition, availability, urgent, recent, search)
 GET    /products/:id
@@ -228,6 +246,7 @@ PATCH  /products/:id/urgent
 ```
 
 ### Rentals
+
 ```
 GET    /rentals                        // list + filters
 GET    /rentals/:id
@@ -242,6 +261,7 @@ PATCH  /rental-requests/:id/return     // [renter] mark returned
 ```
 
 ### Notes
+
 ```
 GET    /notes                          // filter by subject/course/search
 GET    /notes/:id
@@ -251,6 +271,7 @@ DELETE /notes/:id                      // [owner]
 ```
 
 ### Sellers (public)
+
 ```
 GET /sellers/:slug                     // public profile + listings + reviews + stats
 GET /sellers/:slug/reviews
@@ -259,6 +280,7 @@ GET /search?q=                         // products + categories + seller names
 ```
 
 ### Chat
+
 ```
 GET  /conversations                    // [verified] my inbox
 POST /conversations                    // start (product/rental/general)
@@ -268,6 +290,7 @@ PATCH /conversations/:id/read
 ```
 
 ### Wishlist
+
 ```
 GET    /wishlist
 POST   /wishlist                       // {itemType,itemId}
@@ -275,6 +298,7 @@ DELETE /wishlist/:itemType/:itemId
 ```
 
 ### Dashboard / User
+
 ```
 GET /me/listings                       // products + rentals grouped
 GET /me/orders                         // purchases + rental requests
@@ -284,11 +308,13 @@ PATCH /me/settings
 ```
 
 ### Reports
+
 ```
 POST /reports                          // [verified] report product/seller/rental/note
 ```
 
 ### Admin (role=admin only)
+
 ```
 GET    /admin/stats                    // users, products, pending reports, banned, suspicious
 GET    /admin/reports?status=
@@ -317,13 +343,13 @@ Middleware chain: `authenticate → checkAccountStatus → requireProfile(option
 
 ## 4. Role System
 
-| Role | How obtained | Scope |
-|------|--------------|-------|
-| **guest** | not logged in | read-only public browsing |
-| **user** | VIT login (profile incomplete) | login state, limited |
-| **verified user** | `isProfileComplete=true` | full marketplace actions |
-| **seller** | derived: a verified user who has ≥1 listing (auto sellerProfile) — not a stored role, a capability | manage own listings |
-| **admin** | manual `role:"admin"` in DB for team emails | full moderation |
+| Role              | How obtained                                                                                       | Scope                     |
+| ----------------- | -------------------------------------------------------------------------------------------------- | ------------------------- |
+| **guest**         | not logged in                                                                                      | read-only public browsing |
+| **user**          | VIT login (profile incomplete)                                                                     | login state, limited      |
+| **verified user** | `isProfileComplete=true`                                                                           | full marketplace actions  |
+| **seller**        | derived: a verified user who has ≥1 listing (auto sellerProfile) — not a stored role, a capability | manage own listings       |
+| **admin**         | manual `role:"admin"` in DB for team emails                                                        | full moderation           |
 
 Roles stored on `users.role` only as `user`/`admin`; "guest", "verified", "seller" are **derived states** (session presence, `isProfileComplete`, listing ownership) — not duplicated, preventing privilege-escalation drift.
 
@@ -331,30 +357,31 @@ Roles stored on `users.role` only as `user`/`admin`; "guest", "verified", "selle
 
 ## 5. Permissions Matrix
 
-| Action | Guest | User (incomplete) | Verified | Owner | Admin |
-|--------|:-:|:-:|:-:|:-:|:-:|
-| View home/browse/search | ✅ | ✅ | ✅ | ✅ | ✅ |
-| View notes / seller profiles | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Complete profile | ❌ | ✅ | — | — | — |
-| Sell / Rent listing create | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Edit/Delete listing | ❌ | ❌ | ❌ | ✅(own) | ✅ |
-| Edit price (pre-engagement) | ❌ | ❌ | ❌ | ✅(own,unlocked) | ✅ |
-| Send rental request | ❌ | ❌ | ✅ | — | ✅ |
-| Accept/reject request | ❌ | ❌ | ❌ | ✅(owner) | ✅ |
-| Mark returned | ❌ | ❌ | renter only | — | ✅ |
-| Chat | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Wishlist | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Upload/Download notes | view/❌upload | ❌upload | ✅ | ✅ | ✅ |
-| Leave review | ❌ | ❌ | ✅(post-interaction) | — | ✅ |
-| Report | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Access /admin | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Ban/suspend, remove content | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Action                       |     Guest     | User (incomplete) |       Verified       |      Owner       | Admin |
+| ---------------------------- | :-----------: | :---------------: | :------------------: | :--------------: | :---: |
+| View home/browse/search      |      ✅       |        ✅         |          ✅          |        ✅        |  ✅   |
+| View notes / seller profiles |      ✅       |        ✅         |          ✅          |        ✅        |  ✅   |
+| Complete profile             |      ❌       |        ✅         |          —           |        —         |   —   |
+| Sell / Rent listing create   |      ❌       |        ❌         |          ✅          |        ✅        |  ✅   |
+| Edit/Delete listing          |      ❌       |        ❌         |          ❌          |     ✅(own)      |  ✅   |
+| Edit price (pre-engagement)  |      ❌       |        ❌         |          ❌          | ✅(own,unlocked) |  ✅   |
+| Send rental request          |      ❌       |        ❌         |          ✅          |        —         |  ✅   |
+| Accept/reject request        |      ❌       |        ❌         |          ❌          |    ✅(owner)     |  ✅   |
+| Mark returned                |      ❌       |        ❌         |     renter only      |        —         |  ✅   |
+| Chat                         |      ❌       |        ❌         |          ✅          |        ✅        |  ✅   |
+| Wishlist                     |      ❌       |        ❌         |          ✅          |        ✅        |  ✅   |
+| Upload/Download notes        | view/❌upload |     ❌upload      |          ✅          |        ✅        |  ✅   |
+| Leave review                 |      ❌       |        ❌         | ✅(post-interaction) |        —         |  ✅   |
+| Report                       |      ❌       |        ❌         |          ✅          |        ✅        |  ✅   |
+| Access /admin                |      ❌       |        ❌         |          ❌          |        ❌        |  ✅   |
+| Ban/suspend, remove content  |      ❌       |        ❌         |          ❌          |        ❌        |  ✅   |
 
 All write rules re-verified server-side (`sellerId === user.id`, `role === "admin"`).
 
 ---
 
 ## 6. Backend Folder Structure
+
 ```
 server/
 ├── src/
@@ -375,6 +402,7 @@ server/
 ---
 
 ## 7. Frontend Folder Structure
+
 ```
 client/src/
 ├── app/                   // router, providers
@@ -397,6 +425,7 @@ client/src/
 ├── store/                 // global state
 ├── hooks/, lib/, types/, assets/
 ```
+
 UI matches uploads: top nav (logo + search + Wishlist/Chats/Profile), mobile bottom nav with central SELL/RENT FAB, multi-step Sell wizard with live preview + tips, rental browse with left filter rail and "How Renting Works" strip.
 
 ---
@@ -412,6 +441,7 @@ UI matches uploads: top nav (logo + search + Wishlist/Chats/Profile), mobile bot
 ---
 
 ## 9. Deployment Architecture
+
 ```
 Client (React/Vite)  → Vercel / Netlify (static + CDN)
 API (Node/Express)   → Render / Railway / Fly.io (containerized)
@@ -423,6 +453,7 @@ Secrets              → platform env vars
 CI/CD                → GitHub Actions: lint, test, build, deploy
 Monitoring           → Sentry (errors) + uptime + Atlas metrics
 ```
+
 Stable public URLs for OAuth callbacks and webhooks; rate limiting + CORS allow-list on API.
 
 ---
@@ -430,6 +461,7 @@ Stable public URLs for OAuth callbacks and webhooks; rate limiting + CORS allow-
 ## 10. Missing Edge Cases & Improvements
 
 **Gaps in the spec I'll handle:**
+
 1. **Price-lock trigger** — define "engagement" precisely (first chat OR wishlist) and stamp `priceLocked`.
 2. **Delete guards** — block delete when active rentalRequest (`pending/accepted`) or open report exists; offer "Hide" instead.
 3. **Review eligibility** — only after a completed chat/rental to stop fake reviews; one review per context.

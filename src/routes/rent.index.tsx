@@ -25,6 +25,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import ListingActions from "@/components/listing/listing-actions";
 import { getStoragePublicUrl } from "@/lib/storage-url";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
 
@@ -68,6 +69,14 @@ type RentalImageRow = {
   rental_id: string;
   storage_path: string;
   sort_index: number;
+};
+
+type SellerProfileRow = {
+  user_id: string;
+  slug: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  rating_avg: number | null;
 };
 
 const RENTAL_LISTINGS_TABLE = "rental_listings" as unknown as keyof Database["public"]["Tables"];
@@ -150,23 +159,11 @@ function RentFeedPage() {
         map.set(img.rental_id, arr);
       }
 
-      const sellerMap = new Map(
-        (sellers ?? []).map(
-          (s: {
-            user_id: string;
-            slug: string;
-            display_name: string;
-            avatar_url: string | null;
-            rating_avg: number | null;
-          }) => [s.user_id, s],
-        ),
-      );
+          const sellerMap = new Map((sellers ?? []).map((s: any) => [s.user_id, { display_name: s.display_name, avatar_url: s.avatar_url, slug: s.slug }]));
 
       return rows.map((r) => {
         const cover = (map.get(r.id) ?? []).sort((a, b) => a.sort_index - b.sort_index)[0];
-        const coverUrl = cover
-          ? getStoragePublicUrl("rental-images", cover.storage_path)
-          : null;
+        const coverUrl = cover ? getStoragePublicUrl("rental-images", cover.storage_path) : null;
         return { ...r, coverUrl, seller: sellerMap.get(r.seller_id) };
       });
     },
@@ -237,8 +234,10 @@ function RentFeedPage() {
     new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
 
   const statusBadge = (status: RentalRow["status"]) => {
-    if (status === "available") return { label: "Available", className: "bg-emerald-500 text-white" };
-    if (status === "rented_out") return { label: "Rented Out", className: "bg-orange-500 text-white" };
+    if (status === "available")
+      return { label: "Available", className: "bg-emerald-500 text-white" };
+    if (status === "rented_out")
+      return { label: "Rented Out", className: "bg-orange-500 text-white" };
     return { label: "Unavailable", className: "bg-slate-400 text-white" };
   };
 
@@ -252,7 +251,9 @@ function RentFeedPage() {
             </span>
             <div className="hidden leading-tight sm:block">
               <div className="text-sm font-bold tracking-tight">CampusBazar</div>
-              <div className="text-[10px] text-muted-foreground">by the students, for the students</div>
+              <div className="text-[10px] text-muted-foreground">
+                by the students, for the students
+              </div>
             </div>
           </Link>
 
@@ -314,7 +315,11 @@ function RentFeedPage() {
             <p className="text-sm text-muted-foreground">
               Temporary. Affordable. Convenient. Rent items from students around you.
             </p>
-            <Button onClick={() => document.getElementById("rental-listings")?.scrollIntoView({ behavior: "smooth" })}>
+            <Button
+              onClick={() =>
+                document.getElementById("rental-listings")?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
               Explore Rentals
             </Button>
           </div>
@@ -352,7 +357,9 @@ function RentFeedPage() {
                   categoryFilter === cat.key ? "border-primary bg-primary/10" : "bg-card",
                 )}
               >
-                <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", cat.color)}>
+                <div
+                  className={cn("flex h-10 w-10 items-center justify-center rounded-lg", cat.color)}
+                >
                   <cat.icon className="h-5 w-5" />
                 </div>
                 {cat.key.split(" ")[0]}
@@ -501,6 +508,7 @@ function RentFeedPage() {
                   const category =
                     r.category === "Others" && r.custom_category ? r.custom_category : r.category;
                   const badge = statusBadge(r.status);
+                  const seller = r.seller as SellerProfileRow | undefined;
                   return (
                     <Card
                       key={r.id}
@@ -509,8 +517,27 @@ function RentFeedPage() {
                     >
                       <CardContent className="p-0">
                         <div className="relative">
+                          {/* Listing actions for owner/admin */}
+                          <div
+                            className="absolute right-2 top-2 z-20"
+                            onClick={(e) => e.stopPropagation()}
+                            role="presentation"
+                          >
+                            <ListingActions
+                              itemType="rental"
+                              itemId={r.id}
+                              ownerId={r.seller_id}
+                              onEdit={() =>
+                                window.location.assign(`/upload-rental?edit=${r.id}`)
+                              }
+                            />
+                          </div>
                           {r.coverUrl ? (
-                            <img src={r.coverUrl} alt={r.title} className="h-40 w-full object-cover" />
+                            <img
+                              src={r.coverUrl}
+                              alt={r.title}
+                              className="h-40 w-full object-cover"
+                            />
                           ) : (
                             <div className="flex h-40 items-center justify-center bg-muted text-sm text-muted-foreground">
                               No image
@@ -539,19 +566,22 @@ function RentFeedPage() {
                           </div>
                           <div className="flex items-center gap-2 border-t pt-2">
                             <Avatar className="h-6 w-6">
-                              {r.seller?.avatar_url ? (
-                                <AvatarImage src={r.seller.avatar_url} alt="" />
+                              {seller?.avatar_url ? (
+                                <AvatarImage
+                                  src={`${seller.avatar_url}${(seller.avatar_url as string).includes("?") ? "&" : "?"}t=${Date.now()}`}
+                                  alt=""
+                                />
                               ) : null}
                               <AvatarFallback className="text-[9px]">
-                                {(r.seller?.display_name ?? "S").slice(0, 2).toUpperCase()}
+                                {(seller?.display_name ?? "S").slice(0, 2).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                             <span className="truncate text-xs text-muted-foreground">
-                              {r.seller?.display_name ?? "Seller"}
+                              {seller?.display_name ?? "Seller"}
                             </span>
-                            {r.seller?.rating_avg != null && (
+                            {seller?.rating_avg != null && (
                               <span className="ml-auto text-xs text-muted-foreground">
-                                ★ {Number(r.seller.rating_avg).toFixed(1)}
+                                ★ {Number(seller.rating_avg).toFixed(1)}
                               </span>
                             )}
                           </div>
@@ -593,7 +623,7 @@ function RentFeedPage() {
           </div>
         </section>
 
-        <section className="mt-8 flex flex-col items-center justify-between gap-4 rounded-2xl border bg-gradient-to-r from-primary/5 to-orange-50 p-6 sm:flex-row">
+        <section className="mt-8 flex flex-col items-center justify-between gap-4 rounded-2xl border bg-linear-to-r from-primary/5 to-orange-50 p-6 sm:flex-row">
           <div>
             <h3 className="font-semibold">Have something to rent?</h3>
             <p className="mt-1 text-sm text-muted-foreground">

@@ -1,20 +1,42 @@
 import { useRef, useState } from "react";
 import { ImagePlus, Loader2, Send } from "lucide-react";
 
-import {
-  useSendMessage,
-  useSetTyping,
-  useUploadChatImage,
-} from "@/lib/chat";
+import { useSendMessage, useSetTyping, useUploadChatImage } from "@/lib/chat";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const BLOCKED_EXTENSIONS = [
-  ".exe", ".bat", ".cmd", ".sh", ".ps1", ".js", ".mjs", ".cjs", ".ts", ".py",
-  ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".dmg", ".apk", ".msi",
-  ".dll", ".so", ".bin", ".jar", ".war", ".php", ".rb", ".pl", ".html", ".htm",
+  ".exe",
+  ".bat",
+  ".cmd",
+  ".sh",
+  ".ps1",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".ts",
+  ".py",
+  ".zip",
+  ".rar",
+  ".7z",
+  ".tar",
+  ".gz",
+  ".bz2",
+  ".dmg",
+  ".apk",
+  ".msi",
+  ".dll",
+  ".so",
+  ".bin",
+  ".jar",
+  ".war",
+  ".php",
+  ".rb",
+  ".pl",
+  ".html",
+  ".htm",
 ];
 
 function isAllowedChatFile(file: File) {
@@ -63,7 +85,9 @@ export function ChatComposer({
   const handleImage = async (file: File) => {
     if (disabled) return;
     if (!isAllowedChatFile(file)) {
-      toast.error("Only image files (JPEG, PNG, GIF, WebP) are allowed. No executables or archives.");
+      toast.error(
+        "Only image files (JPEG, PNG, GIF, WebP) are allowed. No executables or archives.",
+      );
       return;
     }
     const path = await upload.mutateAsync(file);
