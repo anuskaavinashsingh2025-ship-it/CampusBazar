@@ -273,6 +273,10 @@ function FoodDetailsPage() {
                 itemId={listing.id}
                 ownerId={listing.seller_id}
                 onDeleted={() => navigate({ to: "/food" })}
+                onEdit={() => {
+                  console.log("[ListingActions] onEdit food detail", listing.id);
+                  window.location.assign(`/upload-food?edit=${listing.id}`);
+                }}
               />
             </div>
 

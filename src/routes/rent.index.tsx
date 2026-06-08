@@ -527,9 +527,10 @@ function RentFeedPage() {
                               itemType="rental"
                               itemId={r.id}
                               ownerId={r.seller_id}
-                              onEdit={() =>
-                                window.location.assign(`/upload-rental?edit=${r.id}`)
-                              }
+                              onEdit={() => {
+                                console.log("[ListingActions] onEdit rental", r.id);
+                                window.location.assign(`/upload-rental?edit=${r.id}`);
+                              }}
                             />
                           </div>
                           {r.coverUrl ? (

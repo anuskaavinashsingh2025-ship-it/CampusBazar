@@ -55,7 +55,10 @@ export function ProductCard({ product }: { product: ProductCardModel }) {
               itemType="product"
               itemId={product.id}
               ownerId={product.seller.user_id}
-              onEdit={() => window.location.assign(`/upload-product?edit=${product.id}`)}
+              onEdit={() => {
+                console.log("[ListingActions] onEdit product", product.id);
+                window.location.assign(`/upload-product?edit=${product.id}`);
+              }}
             />
           </div>
           <Link to="/product/$id" params={{ id: product.id }} className="block">

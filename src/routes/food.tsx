@@ -382,7 +382,10 @@ function FoodHubPage() {
                                 itemType="food"
                                 itemId={l.id}
                                 ownerId={l.seller_id}
-                                onEdit={() => window.location.assign(`/upload-food?edit=${l.id}`)}
+                                onEdit={() => {
+                                  console.log("[ListingActions] onEdit food", l.id);
+                                  window.location.assign(`/upload-food?edit=${l.id}`);
+                                }}
                               />
                             </div>
                           </div>

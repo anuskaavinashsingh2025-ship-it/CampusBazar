@@ -312,6 +312,10 @@ function NotesDetailsPage() {
                 itemId={listing.id}
                 ownerId={listing.seller_id}
                 onDeleted={() => navigate({ to: "/notes" })}
+                onEdit={() => {
+                  console.log("[ListingActions] onEdit notes detail", listing.id);
+                  window.location.assign(`/upload-notes?edit=${listing.id}`);
+                }}
               />
             </div>
 

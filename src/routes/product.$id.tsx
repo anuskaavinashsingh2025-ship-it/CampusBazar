@@ -323,6 +323,10 @@ function ProductDetailsPage() {
                 itemId={product.id}
                 ownerId={product.seller_id}
                 onDeleted={() => navigate({ to: "/" })}
+                onEdit={() => {
+                  console.log("[ListingActions] onEdit product detail", product.id);
+                  window.location.assign(`/upload-product?edit=${product.id}`);
+                }}
               />
             </div>
 

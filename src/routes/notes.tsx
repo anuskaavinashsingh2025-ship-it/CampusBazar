@@ -227,9 +227,10 @@ function NotesHubPage() {
                           itemType="notes"
                           itemId={l.id}
                           ownerId={l.seller_id}
-                          onEdit={() =>
-                            window.location.assign(`/upload-notes?edit=${l.id}`)
-                          }
+                          onEdit={() => {
+                            console.log("[ListingActions] onEdit notes", l.id);
+                            window.location.assign(`/upload-notes?edit=${l.id}`);
+                          }}
                         />
                       </div>
                       <div className="text-sm font-semibold">{l.title}</div>
