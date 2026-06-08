@@ -192,7 +192,14 @@ export function useCreateProductRequest() {
         priority: "important",
         module: "marketplace",
         actionUrl: "/requests",
-        metadata: { requestId: data.id, productId: input.productId },
+        metadata: {
+          requestId: data.id,
+          productId: input.productId,
+          buyerId: input.buyerId,
+          sellerId: input.sellerId,
+          entityType: "product",
+          transactionType: "buy_request_received",
+        },
       });
 
       return data;
@@ -248,6 +255,12 @@ export function useUpdateProductRequest() {
 
       if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
         try {
+          const transactionType =
+            input.status === "accepted"
+              ? "deal_accepted"
+              : input.status === "rejected"
+                ? "deal_rejected"
+                : "deal_completed";
           await createNotification({
             userId: input.notifyUserId,
             title: input.notificationTitle,
@@ -255,7 +268,13 @@ export function useUpdateProductRequest() {
             priority: input.status === "rejected" ? "important" : "informational",
             module: "marketplace",
             actionUrl: "/requests",
-            metadata: { requestId: input.requestId, productId: input.productId },
+            metadata: {
+              requestId: input.requestId,
+              productId: input.productId,
+              entityType: "product",
+              transactionType,
+              status: input.status,
+            },
           });
         } catch (notifErr) {
           console.error(

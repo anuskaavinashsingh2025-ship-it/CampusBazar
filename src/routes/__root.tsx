@@ -17,7 +17,7 @@ import { AppLayout } from "../components/app-layout";
 import { AuthPostLoginRedirect } from "../components/auth-post-login-redirect";
 import { Toaster } from "../components/ui/sonner";
 
-const BARE_LAYOUT_PATHS = new Set(["/login", "/complete-profile"]);
+const BARE_LAYOUT_PATHS = new Set(["/login", "/complete-profile", "/reset-password"]);
 
 function NotFoundComponent() {
   return (

@@ -1,18 +1,23 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GraduationCap, Loader2, Search, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { getNotesCategoryLabel } from "@/lib/notes-categories";
 import ListingActions from "@/components/listing/listing-actions";
+import { NotesCategoryFilterBar } from "@/components/notes/notes-category-filter-bar";
+import { NotesHero } from "@/components/notes/notes-hero";
+import { NotesEmptyState, NotesLoadingGrid } from "@/components/notes/notes-empty-state";
+import { NotesListingCard } from "@/components/notes/notes-listing-card";
+import { NotesRequestCard } from "@/components/notes/notes-request-card";
+import { NotesTrustBar } from "@/components/notes/notes-trust-bar";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HubNavStrip } from "@/components/hub-nav-strip";
 
@@ -62,6 +67,7 @@ function NotesHubPage() {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"sell" | "rent" | "requests">("sell");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   const { data: listings, isLoading: loadingListings } = useQuery({
     queryKey: ["notes", "listings"],
@@ -98,10 +104,16 @@ function NotesHubPage() {
   });
 
   const filteredListings = useMemo(() => {
+    let items = (listings ?? []).filter((l) => l.listing_type === tab);
+
+    if (categoryFilter !== "all") {
+      items = items.filter((l) => l.category === categoryFilter);
+    }
+
     const q = query.trim().toLowerCase();
-    const base = (listings ?? []).filter((l) => l.listing_type === tab);
-    if (!q) return base;
-    return base.filter((l) => {
+    if (!q) return items;
+
+    return items.filter((l) => {
       return (
         l.title.toLowerCase().includes(q) ||
         l.category.toLowerCase().includes(q) ||
@@ -109,7 +121,7 @@ function NotesHubPage() {
         (l.faculty ?? "").toLowerCase().includes(q)
       );
     });
-  }, [listings, query, tab]);
+  }, [listings, query, tab, categoryFilter]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -123,6 +135,15 @@ function NotesHubPage() {
       );
     });
   }, [requests, query]);
+
+  const hubStats = useMemo(() => {
+    const all = listings ?? [];
+    return {
+      total: all.length,
+      subjects: new Set(all.map((l) => l.subject).filter(Boolean)).size,
+      sellers: new Set(all.map((l) => l.seller_id)).size,
+    };
+  }, [listings]);
 
   const formatInr = (amount: number) =>
     new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
@@ -139,210 +160,274 @@ function NotesHubPage() {
     navigate({ to: "/upload-notes", search: { type: mode } as never });
   };
 
+  const handleTabChange = (value: string) => {
+    setTab(value as typeof tab);
+    setCategoryFilter("all");
+  };
+
+  const hasSearchQuery = query.trim().length > 0;
+  const hasCategoryFilter = categoryFilter !== "all";
+  const hasActiveFilters = hasSearchQuery || hasCategoryFilter;
+  const showCategoryBar = tab === "sell" || tab === "rent";
+
+  const listingsSectionTitle = hasCategoryFilter
+    ? getNotesCategoryLabel(categoryFilter)
+    : "Recent Listings";
+
+  const listingsSectionSubtitle = (() => {
+    if (hasCategoryFilter && hasSearchQuery) {
+      return `Showing ${getNotesCategoryLabel(categoryFilter)} matching your search`;
+    }
+    if (hasCategoryFilter) {
+      return `Listings in ${getNotesCategoryLabel(categoryFilter)}`;
+    }
+    if (tab === "rent") {
+      return "Rent notes for a few days without buying";
+    }
+    return "Fresh notes posted by students on campus";
+  })();
+
+  const createLabel =
+    tab === "requests" ? "New Request" : tab === "rent" ? "Rent Notes" : "Sell Notes";
+
+  const renderListingsGrid = (listingType: "sell" | "rent") => {
+    if (loadingListings) return <NotesLoadingGrid />;
+
+    if (filteredListings.length) {
+      return (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredListings.map((l) => (
+            <NotesListingCard
+              key={l.id}
+              listing={{ ...l, listing_type: listingType }}
+              formatInr={formatInr}
+              onClick={() => navigate({ to: "/notes/$id", params: { id: l.id } })}
+              actions={
+                listingType === "sell" ? (
+                  <ListingActions
+                    itemType="notes"
+                    itemId={l.id}
+                    ownerId={l.seller_id}
+                    onEdit={() => {
+                      console.log("[ListingActions] onEdit notes", l.id);
+                      window.location.assign(`/upload-notes?edit=${l.id}`);
+                    }}
+                  />
+                ) : undefined
+              }
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <NotesEmptyState
+        title={
+          hasActiveFilters
+            ? "No matching listings"
+            : listingType === "rent"
+              ? "No rental notes yet"
+              : "No notes listings yet"
+        }
+        description={
+          hasActiveFilters
+            ? "Try a different category or clear your search to see more notes."
+            : listingType === "rent"
+              ? "List your notes for rent and help another student this semester."
+              : "Be the first to share your notes with fellow VIT students."
+        }
+        actionLabel={hasActiveFilters ? undefined : listingType === "rent" ? "Rent details" : "Sell details"}
+        onAction={
+          hasActiveFilters
+            ? undefined
+            : () => openDetailsForm(listingType === "rent" ? "rent" : "sell")
+        }
+        isSearchEmpty={hasActiveFilters}
+      />
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+    <div className="min-h-screen bg-gradient-to-b from-primary/[0.04] via-background to-background pb-24">
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
+            className="gap-1.5 rounded-full text-muted-foreground"
             aria-label="Back"
             onClick={() => navigate({ to: "/" })}
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Home</span>
           </Button>
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <div className="leading-tight">
-              <div className="text-sm font-bold tracking-tight">Notes Hub</div>
-              <div className="text-[10px] text-muted-foreground">CampusBazar</div>
-            </div>
-          </Link>
-
-          <div className="relative ml-auto flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="h-10 rounded-full bg-background pl-9"
-              placeholder="Search subjects, faculty, keywords..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-
           <Button
-            size="icon"
-            className="rounded-full"
-            aria-label="Create"
+            className="rounded-full shadow-md shadow-primary/20"
             onClick={() => openDetailsForm(tab)}
           >
-            <Plus className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-4">
-        <HubNavStrip active="notes" className="mb-4" />
-
-        <div className="mb-3 grid grid-cols-3 gap-2">
-          <Button variant="outline" onClick={() => openDetailsForm("sell")}>
-            Sell details
-          </Button>
-          <Button variant="outline" onClick={() => openDetailsForm("rent")}>
-            Rent details
-          </Button>
-          <Button variant="outline" onClick={() => openDetailsForm("requests")}>
-            Request details
+            <Plus className="mr-1.5 h-4 w-4" />
+            {createLabel}
           </Button>
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="sell">Sell</TabsTrigger>
-            <TabsTrigger value="rent">Rent</TabsTrigger>
-            <TabsTrigger value="requests">Requests</TabsTrigger>
+        <NotesHero
+          totalListings={hubStats.total}
+          subjectCount={hubStats.subjects}
+          activeSellers={hubStats.sellers}
+          className="mb-6"
+        />
+
+        <HubNavStrip active="notes" className="mb-6" />
+
+        <Tabs value={tab} onValueChange={handleTabChange}>
+          <TabsList className="mb-6 grid h-11 w-full grid-cols-3 rounded-2xl bg-muted/50 p-1">
+            <TabsTrigger
+              value="sell"
+              className="rounded-xl data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm"
+            >
+              Sell
+            </TabsTrigger>
+            <TabsTrigger
+              value="rent"
+              className="rounded-xl data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm"
+            >
+              Rent
+            </TabsTrigger>
+            <TabsTrigger
+              value="requests"
+              className="rounded-xl data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm"
+            >
+              Requests
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="sell" className="mt-4">
-            {loadingListings ? (
-              <div className="flex justify-center py-16 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin" />
+          {showCategoryBar && (
+            <NotesCategoryFilterBar
+              tab={tab}
+              categoryFilter={categoryFilter}
+              onCategoryChange={setCategoryFilter}
+              className="mb-6"
+            />
+          )}
+
+          <div className="sticky top-14 z-30 mb-6">
+            <div className="rounded-2xl border border-border/50 bg-card/80 p-3 shadow-md shadow-black/[0.03] backdrop-blur-xl sm:p-4">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-12 rounded-2xl border-border/50 bg-background/80 pl-11 text-base shadow-inner"
+                  placeholder="Search notes, subjects, books..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
               </div>
-            ) : filteredListings.length ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredListings.map((l) => (
-                  <Card
-                    key={l.id}
-                    className="border-border/60 shadow-sm"
-                    onClick={() => navigate({ to: "/notes/$id", params: { id: l.id } })}
-                  >
-                    <CardContent className="space-y-2 p-4">
-                      <div
-                        className="absolute right-2 top-2 z-20"
-                        onClick={(e) => e.stopPropagation()}
-                        role="presentation"
-                      >
-                        <ListingActions
-                          itemType="notes"
-                          itemId={l.id}
-                          ownerId={l.seller_id}
-                          onEdit={() => {
-                            console.log("[ListingActions] onEdit notes", l.id);
-                            window.location.assign(`/upload-notes?edit=${l.id}`);
-                          }}
-                        />
-                      </div>
-                      <div className="text-sm font-semibold">{l.title}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-2">
-                        {l.description}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">{l.category}</Badge>
-                        {l.is_free ? (
-                          <Badge variant="outline">Free</Badge>
-                        ) : (
-                          <Badge variant="outline">Paid</Badge>
-                        )}
-                        {l.is_digital ? (
-                          <Badge variant="outline">Digital</Badge>
-                        ) : (
-                          <Badge variant="outline">Physical</Badge>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+            </div>
+          </div>
+
+          <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <Button
+              variant="outline"
+              className="h-11 rounded-2xl border-border/50 bg-card/50 shadow-sm transition-all hover:border-primary/30 hover:bg-primary/5"
+              onClick={() => openDetailsForm("sell")}
+            >
+              Sell details
+            </Button>
+            <Button
+              variant="outline"
+              className="h-11 rounded-2xl border-border/50 bg-card/50 shadow-sm transition-all hover:border-primary/30 hover:bg-primary/5"
+              onClick={() => openDetailsForm("rent")}
+            >
+              Rent details
+            </Button>
+            <Button
+              variant="outline"
+              className="h-11 rounded-2xl border-border/50 bg-card/50 shadow-sm transition-all hover:border-primary/30 hover:bg-primary/5"
+              onClick={() => openDetailsForm("requests")}
+            >
+              Request details
+            </Button>
+          </div>
+
+          <TabsContent value="sell" className="mt-0">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                  {listingsSectionTitle}
+                </h2>
+                <p className="text-xs text-muted-foreground sm:text-sm">{listingsSectionSubtitle}</p>
               </div>
-            ) : (
-              <div className="py-16 text-center text-sm text-muted-foreground">
-                No notes listings yet.
-              </div>
-            )}
+              <span className="shrink-0 rounded-full border border-border/50 bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                {filteredListings.length} {filteredListings.length === 1 ? "listing" : "listings"}
+              </span>
+            </div>
+            {renderListingsGrid("sell")}
           </TabsContent>
 
-          <TabsContent value="rent" className="mt-4">
-            {loadingListings ? (
-              <div className="flex justify-center py-16 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin" />
+          <TabsContent value="rent" className="mt-0">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                  {listingsSectionTitle}
+                </h2>
+                <p className="text-xs text-muted-foreground sm:text-sm">{listingsSectionSubtitle}</p>
               </div>
-            ) : filteredListings.length ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredListings.map((l) => (
-                  <Card
-                    key={l.id}
-                    className="border-border/60 shadow-sm"
-                    onClick={() => navigate({ to: "/notes/$id", params: { id: l.id } })}
-                  >
-                    <CardContent className="space-y-2 p-4">
-                      <div className="text-sm font-semibold">{l.title}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-2">
-                        {l.description}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">{l.category}</Badge>
-                        <Badge variant="outline">
-                          {l.daily_rental_price != null
-                            ? `${formatInr(Number(l.daily_rental_price))} / day`
-                            : "—"}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="py-16 text-center text-sm text-muted-foreground">
-                No rental notes yet.
-              </div>
-            )}
+              <span className="shrink-0 rounded-full border border-border/50 bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                {filteredListings.length} {filteredListings.length === 1 ? "listing" : "listings"}
+              </span>
+            </div>
+            {renderListingsGrid("rent")}
           </TabsContent>
 
-          <TabsContent value="requests" className="mt-4">
+          <TabsContent value="requests" className="mt-0">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                  Open Requests
+                </h2>
+                <p className="text-xs text-muted-foreground sm:text-sm">
+                  Students looking for specific notes and materials
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full border border-border/50 bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                {filteredRequests.length}{" "}
+                {filteredRequests.length === 1 ? "request" : "requests"}
+              </span>
+            </div>
+
             {loadingRequests ? (
               <div className="flex justify-center py-16 text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
               </div>
             ) : filteredRequests.length ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {filteredRequests.map((r) => (
-                  <Card key={r.id} className="border-border/60 shadow-sm">
-                    <CardContent className="space-y-2 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold">{r.subject}</div>
-                          <div className="text-xs text-muted-foreground">{r.request_type}</div>
-                        </div>
-                        <Badge variant="secondary">{r.urgency_level}</Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground">{r.description}</div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toast.message("Respond (chat) is coming soon")}
-                        >
-                          Respond
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => toast.message("Mark fulfilled is coming soon")}
-                        >
-                          Mark Fulfilled
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <NotesRequestCard
+                    key={r.id}
+                    request={r}
+                    onRespond={() => toast.message("Respond (chat) is coming soon")}
+                    onMarkFulfilled={() => toast.message("Mark fulfilled is coming soon")}
+                  />
                 ))}
               </div>
             ) : (
-              <div className="py-16 text-center text-sm text-muted-foreground">
-                No requests yet.
-              </div>
+              <NotesEmptyState
+                title={hasSearchQuery ? "No matching requests" : "No requests yet"}
+                description={
+                  hasSearchQuery
+                    ? "Try different keywords or clear your search."
+                    : "Post a request and let sellers find you on campus."
+                }
+                actionLabel={hasSearchQuery ? undefined : "Request details"}
+                onAction={hasSearchQuery ? undefined : () => openDetailsForm("requests")}
+                isSearchEmpty={hasSearchQuery}
+              />
             )}
           </TabsContent>
         </Tabs>
-      </main>
+
+        <NotesTrustBar className="mt-12" />
+      </div>
     </div>
   );
 }

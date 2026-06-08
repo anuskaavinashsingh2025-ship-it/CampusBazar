@@ -11,7 +11,13 @@ export function AuthPostLoginRedirect() {
 
   useEffect(() => {
     if (loading || !user || isProfileComplete) return;
-    if (pathname === "/complete-profile" || pathname === "/login") return;
+    if (
+      pathname === "/complete-profile" ||
+      pathname === "/login" ||
+      pathname === "/reset-password"
+    ) {
+      return;
+    }
 
     const params = new URLSearchParams(window.location.search);
     const isOAuthReturn =

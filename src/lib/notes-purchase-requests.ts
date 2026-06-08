@@ -114,7 +114,14 @@ export function useCreateNotesPurchase() {
         priority: "important",
         module: "notes",
         actionUrl: "/requests",
-        metadata: { requestId: data.id, notesListingId: input.notesListingId },
+        metadata: {
+          requestId: data.id,
+          notesListingId: input.notesListingId,
+          buyerId: input.buyerId,
+          sellerId: input.sellerId,
+          entityType: "notes",
+          transactionType: "request_response",
+        },
       });
 
       return data;
@@ -159,6 +166,12 @@ export function useUpdateNotesPurchase() {
 
       if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
         try {
+          const transactionType =
+            input.status === "accepted"
+              ? "deal_accepted"
+              : input.status === "rejected"
+                ? "deal_rejected"
+                : "deal_completed";
           await createNotification({
             userId: input.notifyUserId,
             title: input.notificationTitle,
@@ -166,7 +179,12 @@ export function useUpdateNotesPurchase() {
             priority: input.status === "rejected" ? "important" : "informational",
             module: "notes",
             actionUrl: "/requests",
-            metadata: { requestId: input.requestId },
+            metadata: {
+              requestId: input.requestId,
+              entityType: "notes",
+              transactionType,
+              status: input.status,
+            },
           });
         } catch (notifErr) {
           console.error(

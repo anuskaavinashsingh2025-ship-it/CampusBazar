@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -43,11 +44,17 @@ export const Route = createFileRoute("/_authenticated/admin")({
 
 type ReportRow = {
   id: string;
-  target_type: "product" | "seller";
+  target_type: "product" | "seller" | "rental" | "food" | "notes";
   product_id: string | null;
   seller_user_id: string | null;
+  rental_id: string | null;
+  food_listing_id: string | null;
+  notes_listing_id: string | null;
   reason: string;
+  category?: string | null;
   details: string | null;
+  evidence_urls?: string[] | null;
+  evidence_count?: number | null;
   status: "pending" | "resolved" | "dismissed";
   created_at: string;
   reporter_id: string;
@@ -118,8 +125,9 @@ function AdminPortalPage() {
       const { data, error } = await supabase
         .from("reports" as never)
         .select(
-          "id,target_type,product_id,seller_user_id,reason,details,status,created_at,reporter_id",
+          "id,target_type,product_id,seller_user_id,rental_id,food_listing_id,notes_listing_id,category,details,evidence_urls,evidence_count,status,created_at,reporter_id",
         )
+        .eq("status", "pending")
         .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -129,7 +137,72 @@ function AdminPortalPage() {
     refetchInterval: 5000,
   });
 
-  const pending = useMemo(() => (reports ?? []).filter((r) => r.status === "pending"), [reports]);
+  const pending = useMemo(() => reports ?? [], [reports]);
+
+  const [profilesById, setProfilesById] = useState<Record<string, any>>({});
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!reports || reports.length === 0) return;
+    const ids = Array.from(
+      new Set(
+        reports
+          .map((r) => r.reporter_id)
+          .concat(reports.map((r) => r.seller_user_id ?? ""))
+          .filter(Boolean),
+      ),
+    );
+    (async () => {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id,full_name,email,avatar_url")
+        .in("id", ids);
+      const map: Record<string, any> = {};
+      (profiles ?? []).forEach((p: any) => (map[p.id] = p));
+      setProfilesById(map);
+    })();
+  }, [reports]);
+
+  const { data: suspiciousFlags } = useQuery({
+    queryKey: ["admin", "suspicious_flags"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("suspicious_flags" as never)
+        .select("id,user_id,flag_type,score,metadata,resolved,created_at")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+    enabled: isAdmin,
+    refetchInterval: 5000,
+  });
+
+  const [flagNotes, setFlagNotes] = useState<Record<string, string>>({});
+
+  const resolveFlag = async (id: string) => {
+    const { error } = await supabase.from("suspicious_flags" as never).update({ resolved: true } as never).eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["admin", "suspicious_flags"] });
+    toast.success("Flag resolved");
+  };
+
+  const saveFlagNotes = async (id: string) => {
+    const notes = flagNotes[id] ?? "";
+    const { error } = await supabase
+      .from("suspicious_flags" as never)
+      .update({ metadata: { admin_notes: notes } } as never)
+      .eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["admin", "suspicious_flags"] });
+    toast.success("Notes saved");
+  };
 
   const filteredFeedback = useMemo(() => {
     if (!allFeedback) return [];
@@ -287,12 +360,26 @@ function AdminPortalPage() {
               <div key={r.id} className="rounded-xl border p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">{r.target_type}</Badge>
-                  <Badge variant="outline">{r.reason}</Badge>
+                  <Badge variant="outline">{r.category ?? r.reason}</Badge>
                   <span className="text-xs text-muted-foreground">
                     {new Date(r.created_at).toLocaleString()}
                   </span>
                 </div>
                 {r.details && <div className="mt-2 text-sm text-muted-foreground">{r.details}</div>}
+
+                {r.evidence_urls && r.evidence_urls.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {r.evidence_urls.map((u: string, i: number) => (
+                      <img
+                        key={i}
+                        src={u}
+                        alt={`evidence-${i}`}
+                        className="h-16 w-16 object-cover rounded border cursor-pointer"
+                        onClick={() => setExpandedImage(u)}
+                      />
+                    ))}
+                  </div>
+                )}
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => updateReportStatus(r.id, "resolved")}>
@@ -318,23 +405,80 @@ function AdminPortalPage() {
 
                   {r.target_type === "seller" && r.seller_user_id && (
                     <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          setUserStatus(r.seller_user_id!, "suspended", "suspend_user")
-                        }
-                      >
-                        Suspend User
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => setUserStatus(r.seller_user_id!, "banned", "ban_user")}
-                      >
-                        Ban User
-                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setUserStatus(r.seller_user_id!, "suspended", "suspend_user")}>Suspend User</Button>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="destructive">Ban User</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Ban user</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-3">
+                            <Label>Reason</Label>
+                            <Textarea id="ban-reason" />
+                            <Label>Duration</Label>
+                            <Select defaultValue="7">
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="7">7 days</SelectItem>
+                                <SelectItem value="30">30 days</SelectItem>
+                                <SelectItem value="90">90 days</SelectItem>
+                                <SelectItem value="permanent">Permanent</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <div className="flex gap-2 justify-end">
+                              <Button variant="outline">Cancel</Button>
+                              <Button
+                                onClick={() => {
+                                  setUserStatus(r.seller_user_id!, "banned", "ban_user");
+                                }}
+                              >
+                                Confirm Ban
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </>
+                  )}
+
+                  {r.target_type === "rental" && r.rental_id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        toast.info("Rental removal would be handled here. ID: " + r.rental_id);
+                      }}
+                    >
+                      View Rental Listing
+                    </Button>
+                  )}
+
+                  {r.target_type === "food" && r.food_listing_id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        toast.info("Food listing review would be handled here. ID: " + r.food_listing_id);
+                      }}
+                    >
+                      View Food Listing
+                    </Button>
+                  )}
+
+                  {r.target_type === "notes" && r.notes_listing_id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        toast.info("Notes listing review would be handled here. ID: " + r.notes_listing_id);
+                      }}
+                    >
+                      View Notes Listing
+                    </Button>
                   )}
                 </div>
               </div>
@@ -342,6 +486,62 @@ function AdminPortalPage() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Suspicious Flags</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {(suspiciousFlags ?? []).length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No suspicious flags.</div>
+          ) : (
+            (suspiciousFlags ?? []).map((f: any) => (
+              <div key={f.id} className="rounded-xl border p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary">{f.flag_type}</Badge>
+                    <span className="text-sm text-muted-foreground">Score: {f.score}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(f.created_at).toLocaleString()}</span>
+                  </div>
+                  <div>
+                    {f.resolved ? (
+                      <Badge>Resolved</Badge>
+                    ) : (
+                      <Badge variant="outline">Open</Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-2 text-sm text-muted-foreground">{JSON.stringify(f.metadata)}</div>
+
+                <div className="mt-3 flex flex-wrap gap-2 items-start">
+                  <Textarea
+                    placeholder="Add admin notes"
+                    value={flagNotes[f.id] ?? (f.metadata?.admin_notes ?? "")}
+                    onChange={(e) => setFlagNotes((s) => ({ ...s, [f.id]: e.target.value }))}
+                    className="flex-1 min-w-[200px]"
+                  />
+                  <Button size="sm" onClick={() => saveFlagNotes(f.id)}>Save Notes</Button>
+                  <Button size="sm" onClick={() => resolveFlag(f.id)}>Resolve Flag</Button>
+                  <Button size="sm" variant="outline" onClick={() => setUserStatus(f.user_id, "suspended", "suspend_user")}>Suspend User</Button>
+                  <Button size="sm" variant="destructive" onClick={() => setUserStatus(f.user_id, "banned", "ban_user")}>Ban User</Button>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Image preview dialog */}
+      <Dialog open={Boolean(expandedImage)} onOpenChange={(open) => !open && setExpandedImage(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Evidence</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center">
+            {expandedImage && <img src={expandedImage} alt="evidence" className="max-h-[80vh]" />}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

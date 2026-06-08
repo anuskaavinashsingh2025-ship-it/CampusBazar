@@ -23,6 +23,7 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useNotifications,
+  useNotificationListener,
   type NotificationModule,
   type NotificationRow,
 } from "@/lib/notifications";
@@ -70,6 +71,9 @@ function NotificationsPage() {
   const { data: notifications = [], isLoading } = useNotifications(user?.id);
   const markRead = useMarkNotificationRead(user?.id);
   const markAllRead = useMarkAllNotificationsRead(user?.id);
+  
+  // Enable real-time notification updates
+  useNotificationListener(user?.id);
 
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");

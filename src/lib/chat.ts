@@ -892,12 +892,20 @@ export async function ensureConversationOnAccept(input: {
       );
       await createNotification({
         userId: input.buyerId,
-        title: "Chat Ready",
-        description: `Seller accepted your request for "${input.listingTitle}".`,
+        title: "Deal Accepted",
+        description: `Your request for "${input.listingTitle}" has been accepted!`,
         priority: "important",
         module: "chats",
         actionUrl: `/chats/${conversationId}`,
-        metadata: { conversationId, requestId: input.requestId },
+        metadata: {
+          conversationId,
+          requestId: input.requestId,
+          buyerId: input.buyerId,
+          sellerId: input.sellerId,
+          entityType: input.contextType,
+          transactionType: "deal_confirmed",
+          listingTitle: input.listingTitle,
+        },
       });
       console.log("[ensureConversationOnAccept] Buyer notification created successfully");
     } catch (notifErr) {
@@ -916,11 +924,19 @@ export async function ensureConversationOnAccept(input: {
       await createNotification({
         userId: input.sellerId,
         title: "Chat Ready",
-        description: `Chat is open with the buyer for "${input.listingTitle}".`,
+        description: `Chat is now open with the buyer for "${input.listingTitle}".`,
         priority: "informational",
         module: "chats",
         actionUrl: `/chats/${conversationId}`,
-        metadata: { conversationId, requestId: input.requestId },
+        metadata: {
+          conversationId,
+          requestId: input.requestId,
+          buyerId: input.buyerId,
+          sellerId: input.sellerId,
+          entityType: input.contextType,
+          transactionType: "deal_confirmed",
+          listingTitle: input.listingTitle,
+        },
       });
       console.log("[ensureConversationOnAccept] Seller notification created successfully");
     } catch (notifErr) {

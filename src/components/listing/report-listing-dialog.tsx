@@ -3,7 +3,7 @@ import { Flag, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/lib/auth";
-import { reportTargetFromItemType, submitListingReport } from "@/lib/listing-reports";
+import { reportTargetFromItemType, submitListingReport, uploadReportEvidence } from "@/lib/listing-reports";
 import type { WishlistItemType } from "@/lib/wishlist";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +25,15 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const REASONS = ["scam", "spam", "fake", "offensive", "misleading", "other"];
+const CATEGORIES = [
+  "Scam",
+  "Spam",
+  "Fake Listing",
+  "Offensive",
+  "Misleading",
+  "Payment Issue",
+  "Other",
+];
 
 type ReportListingDialogProps = {
   itemType: WishlistItemType;
@@ -40,8 +48,9 @@ export function ReportListingDialog({
 }: ReportListingDialogProps) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState("scam");
+  const [category, setCategory] = useState(CATEGORIES[0]);
   const [details, setDetails] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -51,12 +60,22 @@ export function ReportListingDialog({
     }
     setSubmitting(true);
     try {
+      // Upload evidence files first (if any)
+      let evidenceUrls: string[] | undefined;
+      if (files.length > 0) {
+        const uploads = await Promise.all(
+          files.slice(0, 5).map((f) => uploadReportEvidence(user.id, f)),
+        );
+        evidenceUrls = uploads.filter(Boolean) as string[];
+      }
+
       await submitListingReport({
         reporterId: user.id,
         targetType: reportTargetFromItemType(itemType),
         itemId,
-        reason,
-        details: details.trim() || undefined,
+        category,
+        details: details.trim(),
+        evidenceUrls,
       });
       toast.success("Report submitted.");
       setOpen(false);
@@ -85,27 +104,55 @@ export function ReportListingDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Reason</Label>
-            <Select value={reason} onValueChange={setReason}>
+            <Label>Category</Label>
+            <Select value={category} onValueChange={setCategory}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {REASONS.map((r) => (
+                {CATEGORIES.map((r) => (
                   <SelectItem key={r} value={r}>
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
+                    {r}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Details (optional)</Label>
+            <Label>Detailed description (required)</Label>
             <Textarea
               value={details}
               onChange={(e) => setDetails(e.target.value)}
-              placeholder="Additional context..."
+              placeholder={`Describe the issue in detail (max 1000 characters)`}
+              maxLength={1000}
+              required
             />
+            <div className="space-y-1">
+              <Label>Attach evidence (images only, up to 5)</Label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => {
+                  const list = e.target.files;
+                  if (!list) return;
+                  const arr = Array.from(list).slice(0, 5);
+                  setFiles(arr);
+                }}
+              />
+              {files.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {files.map((f, i) => (
+                    <img
+                      key={i}
+                      src={URL.createObjectURL(f)}
+                      alt={f.name}
+                      className="h-16 w-16 object-cover rounded border"
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <DialogFooter>

@@ -108,11 +108,19 @@ export function useCreateFoodOrder() {
       await createNotification({
         userId: input.sellerId,
         title: "Food Order Received",
-        description: `You received an order for "${input.productName}".`,
+        description: `You received an order for "${input.productName}" (qty: ${input.quantity ?? 1}).`,
         priority: "important",
         module: "food",
         actionUrl: "/requests",
-        metadata: { orderId: data.id, foodListingId: input.foodListingId },
+        metadata: {
+          orderId: data.id,
+          foodListingId: input.foodListingId,
+          buyerId: input.buyerId,
+          sellerId: input.sellerId,
+          entityType: "food",
+          transactionType: "food_order_received",
+          quantity: input.quantity ?? 1,
+        },
       });
 
       return data;
@@ -157,6 +165,12 @@ export function useUpdateFoodOrder() {
 
       if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
         try {
+          const transactionType =
+            input.status === "accepted"
+              ? "deal_accepted"
+              : input.status === "rejected"
+                ? "deal_rejected"
+                : "deal_completed";
           await createNotification({
             userId: input.notifyUserId,
             title: input.notificationTitle,
@@ -164,7 +178,12 @@ export function useUpdateFoodOrder() {
             priority: input.status === "rejected" ? "important" : "informational",
             module: "food",
             actionUrl: "/requests",
-            metadata: { orderId: input.orderId },
+            metadata: {
+              orderId: input.orderId,
+              entityType: "food",
+              transactionType,
+              status: input.status,
+            },
           });
         } catch (notifErr) {
           console.error(

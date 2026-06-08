@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useEffect } from "react";
 
 export type NotificationPriority = "critical" | "important" | "informational";
 export type NotificationModule =
@@ -258,3 +259,65 @@ export const PRIORITY_STYLES: Record<
   important: { dot: "bg-orange-500", badge: "bg-orange-100 text-orange-700", label: "Important" },
   informational: { dot: "bg-blue-500", badge: "bg-blue-100 text-blue-700", label: "Info" },
 };
+
+/**
+ * Real-time listener for notifications using Supabase Realtime
+ * Automatically invalidates notification queries when new notifications arrive
+ * Enables instant unread count and badge updates without page refresh
+ */
+export function useNotificationListener(userId: string | null | undefined) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!userId) return;
+
+    // Subscribe to new notifications in real-time
+    const subscription = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          console.log("[useNotificationListener] New notification:", payload.new);
+
+          // Invalidate queries to refresh UI immediately
+          void queryClient.invalidateQueries({
+            queryKey: notificationsQueryKey(userId),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: unreadCountQueryKey(userId),
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          console.log("[useNotificationListener] Notification updated:", payload.new);
+
+          // Invalidate queries when notifications are marked as read
+          void queryClient.invalidateQueries({
+            queryKey: notificationsQueryKey(userId),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: unreadCountQueryKey(userId),
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(subscription);
+    };
+  }, [userId, queryClient]);
+}

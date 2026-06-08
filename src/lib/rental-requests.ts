@@ -226,7 +226,14 @@ export function useCreateRentalRequest() {
         priority: "important",
         module: "rentals",
         actionUrl: "/requests",
-        metadata: { requestId: data.id, rentalId: input.rentalId },
+        metadata: {
+          requestId: data.id,
+          rentalId: input.rentalId,
+          buyerId: input.buyerId,
+          sellerId: input.sellerId,
+          entityType: "rental",
+          transactionType: "rental_request_received",
+        },
       });
 
       return data;
@@ -283,6 +290,12 @@ export function useUpdateRentalRequest() {
 
       if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
         try {
+          const transactionType =
+            input.status === "accepted"
+              ? "deal_accepted"
+              : input.status === "rejected"
+                ? "deal_rejected"
+                : "deal_completed";
           await createNotification({
             userId: input.notifyUserId,
             title: input.notificationTitle,
@@ -290,7 +303,13 @@ export function useUpdateRentalRequest() {
             priority: input.status === "rejected" ? "important" : "informational",
             module: "rentals",
             actionUrl: "/requests",
-            metadata: { requestId: input.requestId, rentalId: input.rentalId },
+            metadata: {
+              requestId: input.requestId,
+              rentalId: input.rentalId,
+              entityType: "rental",
+              transactionType,
+              status: input.status,
+            },
           });
         } catch (notifErr) {
           console.error(

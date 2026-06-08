@@ -4,10 +4,12 @@ import { GraduationCap, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { isSignupAlreadyRegisteredError } from "@/lib/auth-user-inspection";
 import { useAuth } from "@/lib/auth";
 import { bootstrapUserAccount } from "@/lib/supabase-account";
 import { getSavedLogins, removeSavedLogin, saveLogin, type SavedLogin } from "@/lib/saved-login";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +50,8 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
+const RESET_PASSWORD_REDIRECT = () => `${window.location.origin}/reset-password`;
+
 function LoginPage() {
   const navigate = useNavigate();
   const { session, loading, isProfileComplete } = useAuth();
@@ -59,10 +63,18 @@ function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [savedLogins, setSavedLogins] = useState<SavedLogin[]>([]);
+  const [signupConflict, setSignupConflict] = useState(false);
+  const [passwordSetupSending, setPasswordSetupSending] = useState(false);
+  const [passwordSetupSent, setPasswordSetupSent] = useState(false);
 
   useEffect(() => {
     setSavedLogins(getSavedLogins());
   }, []);
+
+  useEffect(() => {
+    setSignupConflict(false);
+    setPasswordSetupSent(false);
+  }, [email, mode]);
 
   useEffect(() => {
     if (!loading && session) {
@@ -107,7 +119,13 @@ function LoginPage() {
             data: { full_name: fullName },
           },
         });
-        if (error) throw error;
+        if (error) {
+          if (isSignupAlreadyRegisteredError(error.message)) {
+            setSignupConflict(true);
+            return;
+          }
+          throw error;
+        }
         saveLogin({ email, displayName: fullName, provider: "email" });
         toast.success("Account created!");
       }
@@ -123,9 +141,6 @@ function LoginPage() {
   const handleGoogle = async (savedEmail?: string) => {
     setGoogleLoading(true);
     try {
-      // Use Supabase client directly for OAuth. This will redirect the browser
-      // to Google's consent screen. Supabase is configured with
-      // detectSessionInUrl so the app will pick up the session on return.
       const options: Record<string, unknown> = {
         redirectTo: `${window.location.origin}/`,
       };
@@ -138,9 +153,6 @@ function LoginPage() {
 
       if (error) throw error;
 
-      // For redirect flows, the browser navigates away so code after this
-      // typically won't run. If we land here without a redirect, try to
-      // navigate using the existing flow.
       toast.success("Welcome!");
       await navigateAfterAuth();
     } catch (err) {
@@ -165,6 +177,33 @@ function LoginPage() {
     e.stopPropagation();
     removeSavedLogin(saved.email);
     setSavedLogins(getSavedLogins());
+  };
+
+  const handleRequestPasswordSetup = async () => {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      toast.error("Enter your email address first.");
+      return;
+    }
+
+    setPasswordSetupSending(true);
+    setPasswordSetupSent(false);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
+        redirectTo: RESET_PASSWORD_REDIRECT(),
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setPasswordSetupSent(true);
+      toast.success("Password setup email sent. Check your inbox.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not send password setup email";
+      toast.error(message);
+    } finally {
+      setPasswordSetupSending(false);
+    }
   };
 
   return (
@@ -301,16 +340,83 @@ function LoginPage() {
                 </div>
 
                 {mode === "signin" && (
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="rememberMe"
-                      checked={rememberMe}
-                      onCheckedChange={(v) => setRememberMe(Boolean(v))}
-                    />
-                    <Label htmlFor="rememberMe" className="text-sm font-normal">
-                      Remember me on this device
-                    </Label>
-                  </div>
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="rememberMe"
+                        checked={rememberMe}
+                        onCheckedChange={(v) => setRememberMe(Boolean(v))}
+                      />
+                      <Label htmlFor="rememberMe" className="text-sm font-normal">
+                        Remember me on this device
+                      </Label>
+                    </div>
+                    <p className="text-center text-xs text-muted-foreground">
+                      Signed up with Google?{" "}
+                      <button
+                        type="button"
+                        className="font-medium text-primary underline-offset-4 hover:underline"
+                        onClick={handleRequestPasswordSetup}
+                        disabled={passwordSetupSending}
+                      >
+                        {passwordSetupSent ? "Email sent" : "Set up a password"}
+                      </button>
+                    </p>
+                  </>
+                )}
+
+                {mode === "signup" && signupConflict && (
+                  <Alert className="border-primary/20 bg-primary/5 text-left">
+                    <AlertTitle>Account already exists</AlertTitle>
+                    <AlertDescription className="space-y-3">
+                      <p>
+                        This email is already registered — often via Google sign-in. Continue with
+                        Google, or send a password setup link to add email/password login to the same
+                        account.
+                      </p>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() => handleGoogle(email)}
+                          disabled={googleLoading || passwordSetupSending}
+                        >
+                          {googleLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <GoogleIcon className="h-4 w-4" />
+                          )}
+                          Sign in with Google
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleRequestPasswordSetup}
+                          disabled={passwordSetupSending || googleLoading}
+                        >
+                          {passwordSetupSending && (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          )}
+                          {passwordSetupSent ? "Email sent" : "Set up password"}
+                        </Button>
+                      </div>
+                      {passwordSetupSent ? (
+                        <p className="text-xs text-muted-foreground">
+                          Check your inbox for the reset link. It expires after a short time and
+                          can only be used once.
+                        </p>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto p-0 text-xs"
+                        onClick={() => setMode("signin")}
+                      >
+                        Already have a password? Sign in
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 <Button type="submit" className="w-full" disabled={submitting || googleLoading}>
