@@ -1,5 +1,0 @@
-[build]
-command = "npm run build"
-
-[deploy]
-startCommand = "node dist/server/server.js"
