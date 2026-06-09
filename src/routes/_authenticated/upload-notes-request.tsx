@@ -5,6 +5,7 @@ import { ArrowLeft, GraduationCap, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { enforceBanCheck } from "@/lib/ban-enforcement";
 import type { Database } from "@/integrations/supabase/types";
 
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ function UploadNotesRequestPage() {
 
     setSubmitting(true);
     try {
+      await enforceBanCheck(user.id, "create a notes request");
       const { error } = await supabase.from(NOTES_REQUESTS_TABLE).insert({
         requester_id: user.id,
         subject: subject.trim(),

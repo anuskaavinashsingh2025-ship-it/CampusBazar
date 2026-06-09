@@ -10,6 +10,7 @@ import {
   type ChatMutationResult,
 } from "@/lib/chat";
 import { createNotification } from "@/lib/notifications";
+import { enforceBanCheck } from "@/lib/ban-enforcement";
 
 export type RentalRequestStatus =
   | "pending"
@@ -202,6 +203,7 @@ export function useCreateRentalRequest() {
       buyerName?: string;
       buyerHostel?: string;
     }) => {
+      await enforceBanCheck(input.buyerId, "create a rental request");
       const message = formatRentalRequestMessage(input.form);
       const { data, error } = await supabase
         .from(REQUESTS_TABLE)

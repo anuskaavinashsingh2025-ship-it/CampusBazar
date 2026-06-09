@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { enforceBanCheck } from "@/lib/ban-enforcement";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +67,7 @@ function UploadFoodRequestPage() {
 
     setSubmitting(true);
     try {
+      await enforceBanCheck(user.id, "create a food request");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       const { error } = await supabase.from(FOOD_REQUESTS_TABLE).insert({
         requester_id: user.id,

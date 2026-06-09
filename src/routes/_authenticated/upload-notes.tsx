@@ -7,7 +7,7 @@ import { ArrowLeft, GraduationCap, Loader2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { ensureSellerProfile } from "@/lib/supabase-account";
-import { checkBanStatus } from "@/lib/ban-enforcement";
+import { checkBanStatus, enforceBanCheck } from "@/lib/ban-enforcement";
 import type { Database } from "@/integrations/supabase/types";
 
 import { Button } from "@/components/ui/button";
@@ -185,6 +185,7 @@ function UploadNotesPage() {
 
     setSubmitting(true);
     try {
+      await enforceBanCheck(user.id, "create a notes listing");
       await ensureSellerProfile({
         user_id: user.id,
         display_name: sellerDisplayName,

@@ -10,6 +10,7 @@ import {
   type ChatMutationResult,
 } from "@/lib/chat";
 import { createNotification } from "@/lib/notifications";
+import { enforceBanCheck } from "@/lib/ban-enforcement";
 
 export type NotesPurchaseStatus = "pending" | "accepted" | "rejected" | "completed" | "cancelled";
 
@@ -91,6 +92,7 @@ export function useCreateNotesPurchase() {
       buyerName?: string;
       buyerHostel?: string;
     }) => {
+      await enforceBanCheck(input.buyerId, "create a notes purchase request");
       const { data, error } = await supabase
         .from(REQUESTS_TABLE)
         .insert({

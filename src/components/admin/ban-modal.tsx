@@ -30,6 +30,13 @@ type BanModalProps = {
   onOpenChange: (open: boolean) => void;
   targetUserId: string;
   targetUserName?: string;
+  reportContext?: {
+    reportId: string;
+    targetType: string;
+    reporterId: string;
+    sellerUserId: string | null;
+  } | null;
+  onBanned?: () => Promise<void> | void;
 };
 
 export function BanModal({
@@ -37,6 +44,8 @@ export function BanModal({
   onOpenChange,
   targetUserId,
   targetUserName,
+  reportContext,
+  onBanned,
 }: BanModalProps) {
   const { user } = useAuth();
   const [duration, setDuration] = useState<BanDuration>("7");
@@ -46,6 +55,30 @@ export function BanModal({
   const handleSubmit = async () => {
     if (!user) {
       toast.error("You must be logged in to ban users");
+      return;
+    }
+
+    if (!targetUserId) {
+      toast.error("Cannot ban user: missing target user id.");
+      console.error("[BanModal] Missing target user id", {
+        reportId: reportContext?.reportId ?? null,
+        targetType: reportContext?.targetType ?? null,
+        reporterId: reportContext?.reporterId ?? null,
+        sellerUserId: reportContext?.sellerUserId ?? null,
+        finalUserIdBeingBanned: targetUserId,
+      });
+      return;
+    }
+
+    if (reportContext && targetUserId !== reportContext.sellerUserId) {
+      toast.error("Cannot ban user: selected target is not the reported seller.");
+      console.error("[BanModal] Refusing to ban non-seller target", {
+        reportId: reportContext.reportId,
+        targetType: reportContext.targetType,
+        reporterId: reportContext.reporterId,
+        sellerUserId: reportContext.sellerUserId,
+        finalUserIdBeingBanned: targetUserId,
+      });
       return;
     }
 
@@ -66,30 +99,66 @@ export function BanModal({
       }
 
       // Update user profile with ban information
-      const { error } = await supabase
+      const bannedAt = new Date().toISOString();
+      const updatePayload = {
+        status: "banned",
+        banned_at: bannedAt,
+        banned_until: bannedUntil,
+        ban_reason: reason.trim(),
+        banned_by: user.id,
+      };
+
+      console.log("[BanModal] Updating profile ban status", {
+        reportId: reportContext?.reportId ?? null,
+        targetType: reportContext?.targetType ?? null,
+        reporterId: reportContext?.reporterId ?? null,
+        sellerUserId: reportContext?.sellerUserId ?? null,
+        finalUserIdBeingBanned: targetUserId,
+        updatePayload,
+      });
+
+      const { data: updatedProfile, error } = await supabase
         .from("profiles")
-        .update({
-          status: "banned",
-          banned_at: new Date().toISOString(),
-          banned_until: bannedUntil,
-          ban_reason: reason.trim(),
-          banned_by: user.id,
-        })
-        .eq("id", targetUserId);
+        .update(updatePayload)
+        .eq("id", targetUserId)
+        .select("id,email,status,banned_at,banned_until,ban_reason,banned_by")
+        .single();
 
       if (error) throw error;
+      if (!updatedProfile || updatedProfile.status !== "banned" || !updatedProfile.banned_at) {
+        console.error("[BanModal] Profile update did not persist ban fields", {
+          reportId: reportContext?.reportId ?? null,
+          targetType: reportContext?.targetType ?? null,
+          reporterId: reportContext?.reporterId ?? null,
+          sellerUserId: reportContext?.sellerUserId ?? null,
+          finalUserIdBeingBanned: targetUserId,
+          updatedProfile,
+        });
+        throw new Error("Ban update did not persist on the user profile.");
+      }
+
+      console.log("[BanModal] Profile ban update succeeded", {
+        reportId: reportContext?.reportId ?? null,
+        targetType: reportContext?.targetType ?? null,
+        reporterId: reportContext?.reporterId ?? null,
+        sellerUserId: reportContext?.sellerUserId ?? null,
+        finalUserIdBeingBanned: targetUserId,
+        updatedProfile,
+      });
 
       // Log admin action
-      await supabase.from("admin_actions" as never).insert({
+      const { error: actionError } = await supabase.from("admin_actions" as never).insert({
         admin_user_id: user.id,
         action_type: "ban_user",
         target_user_id: targetUserId,
         notes: `Banned for ${duration === "permanent" ? "permanent" : `${duration} days`}: ${reason.trim()}`,
       } as never);
+      if (actionError) throw actionError;
 
       toast.success(
         `User ${targetUserName ? targetUserName : ""} banned ${duration === "permanent" ? "permanently" : `for ${duration} days`}`
       );
+      await onBanned?.();
       onOpenChange(false);
       setReason("");
       setDuration("7");

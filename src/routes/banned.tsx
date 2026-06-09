@@ -44,7 +44,7 @@ function BannedPage() {
           <CardTitle className="text-2xl text-red-600">Account Banned</CardTitle>
           <CardDescription>
             {isPermanent
-              ? "Your account has been permanently banned from CampusBazar."
+              ? "Your account has been permanently banned."
               : `Your account is temporarily banned until ${banEndDate?.toLocaleDateString()}.`}
           </CardDescription>
         </CardHeader>

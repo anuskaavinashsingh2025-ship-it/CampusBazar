@@ -10,6 +10,7 @@ import {
   type ChatMutationResult,
 } from "@/lib/chat";
 import { createNotification } from "@/lib/notifications";
+import { enforceBanCheck } from "@/lib/ban-enforcement";
 
 export type FoodOrderStatus = "pending" | "accepted" | "rejected" | "completed" | "cancelled";
 
@@ -91,6 +92,7 @@ export function useCreateFoodOrder() {
       quantity?: number;
       message?: string;
     }) => {
+      await enforceBanCheck(input.buyerId, "create a food order");
       const { data, error } = await supabase
         .from(ORDERS_TABLE)
         .insert({

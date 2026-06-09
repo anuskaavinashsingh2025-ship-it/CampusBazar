@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { ensureSellerProfile } from "@/lib/supabase-account";
-import { checkBanStatus } from "@/lib/ban-enforcement";
+import { checkBanStatus, enforceBanCheck } from "@/lib/ban-enforcement";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -163,6 +163,7 @@ function UploadFoodPage() {
     setSubmitting(true);
     try {
       if (!user) throw new Error("Please login again.");
+      await enforceBanCheck(user.id, "create a food listing");
 
       await ensureSellerProfile({
         user_id: user.id,

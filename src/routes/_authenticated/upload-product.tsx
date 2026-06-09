@@ -26,7 +26,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { ensureSellerProfile } from "@/lib/supabase-account";
-import { checkBanStatus } from "@/lib/ban-enforcement";
+import { checkBanStatus, enforceBanCheck } from "@/lib/ban-enforcement";
 import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -286,6 +286,7 @@ function UploadProductPage() {
 
   const upsertDraftListing = async (publish: boolean): Promise<string> => {
     if (!user) throw new Error("Not authenticated");
+    await enforceBanCheck(user.id, publish ? "publish a product listing" : "save a product draft");
 
     await ensureSellerProfile({
       user_id: user.id,

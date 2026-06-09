@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { bootstrapUserAccount } from "@/lib/supabase-account";
+import { checkBanStatus } from "@/lib/ban-enforcement";
 import { getSavedLogins, removeSavedLogin, saveLogin, type SavedLogin } from "@/lib/saved-login";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +82,16 @@ function LoginPage() {
     } = await supabase.auth.getUser();
     if (authUser) {
       await bootstrapUserAccount(authUser);
+      const banStatus = await checkBanStatus(authUser.id);
+      if (banStatus.isBanned) {
+        toast.error(
+          banStatus.isPermanent
+            ? "Your account has been permanently banned."
+            : `Your account is banned until ${new Date(banStatus.bannedUntil!).toLocaleDateString()}.`,
+        );
+        navigate({ to: "/banned" as any });
+        return;
+      }
       const { data: prof } = await supabase
         .from("profiles")
         .select("is_profile_complete")

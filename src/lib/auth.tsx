@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null);
       setRoles([]);
     }
-  }, []);
+  }, [navigate]);
 
   const refreshProfile = useCallback(async () => {
     if (user) {

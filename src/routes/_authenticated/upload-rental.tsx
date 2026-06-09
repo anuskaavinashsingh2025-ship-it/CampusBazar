@@ -7,7 +7,7 @@ import { GraduationCap, Image as ImageIcon, Loader2, ArrowLeft } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { ensureSellerProfile } from "@/lib/supabase-account";
-import { checkBanStatus } from "@/lib/ban-enforcement";
+import { checkBanStatus, enforceBanCheck } from "@/lib/ban-enforcement";
 import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -167,6 +167,7 @@ function UploadRentalPage() {
 
     setSubmitting(true);
     try {
+      await enforceBanCheck(user.id, "create a rental listing");
       await ensureSellerProfile({
         user_id: user.id,
         display_name: sellerDisplayName,

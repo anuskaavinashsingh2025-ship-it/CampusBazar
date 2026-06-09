@@ -45,8 +45,13 @@ export async function checkBanStatus(userId: string): Promise<BanStatus> {
     };
   }
 
-  // Check if user is banned
-  if (data.status !== "banned") {
+  const hasActiveBan =
+    data.banned_at !== null &&
+    (data.banned_until === null || new Date(data.banned_until) > new Date());
+
+  // Check if user is banned. Older rows may have ban metadata even if
+  // status drifted, so treat the ban columns as authoritative too.
+  if (data.status !== "banned" && !hasActiveBan) {
     console.log("[BAN ENFORCEMENT] User is not banned (status:", data.status + ")");
     return {
       isBanned: false,

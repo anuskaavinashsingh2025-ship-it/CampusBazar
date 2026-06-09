@@ -813,7 +813,7 @@ function AdminPortalPage() {
                       </Button>
                     )}
 
-                    {r.target_type === "seller" && r.seller_user_id && (
+                    {r.seller_user_id && (
                       <>
                         <Button
                           size="sm"
@@ -829,11 +829,11 @@ function AdminPortalPage() {
                           variant="destructive"
                           onClick={() => {
                             setBanTargetUserId(r.seller_user_id!);
-                            setBanTargetUserName(null);
+                            setBanTargetUserName(sellerName(r) ?? "reported seller");
                             setBanModalOpen(true);
                           }}
                         >
-                          Ban User
+                          Ban Seller
                         </Button>
                       </>
                     )}
