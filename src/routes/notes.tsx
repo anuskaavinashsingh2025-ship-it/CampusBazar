@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  GraduationCap,
   Loader2,
   Search,
   Plus,
@@ -20,7 +19,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { useRespondToNotesRequest } from "@/lib/notes-respond";
 import ListingActions from "@/components/listing/listing-actions";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,6 +87,46 @@ function NotesHubPage() {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"sell" | "rent" | "requests">("sell");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  // Notes Request → Chat integration.
+  // When a seller clicks "Respond" on a request, this hook:
+  //   1. finds-or-creates a conversation in the existing `conversations`
+  //      table (reusing the same chat infrastructure as every other hub).
+  //   2. inserts the initial system message and the auto first message.
+  //   3. marks the request as "in_progress".
+  //   4. invalidates the relevant React Query caches.
+  // The mutation's `onSuccess` then navigates to /chats/$id.
+  const respond = useRespondToNotesRequest();
+
+  const handleRespond = (r: NotesRequestRow) => {
+    if (!user) {
+      navigate({ to: "/login" });
+      return;
+    }
+    if (user.id === r.requester_id) {
+      toast.error("You cannot respond to your own notes request.");
+      return;
+    }
+    respond.mutate(
+      {
+        requestId: r.id,
+        requestCreatorId: r.requester_id,
+        requestSubject: r.subject,
+        responderId: user.id,
+      },
+      {
+        onSuccess: ({ conversationId }) => {
+          if (conversationId) {
+            navigate({
+              to: "/chats/$id",
+              params: { id: conversationId },
+              search: { focus: "1" } as never,
+            });
+          }
+        },
+      },
+    );
+  };
 
   const { data: listings, isLoading: loadingListings } = useQuery({
     queryKey: ["notes", "listings"],
@@ -181,14 +222,12 @@ function NotesHubPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <div className="leading-tight">
-              <div className="text-sm font-bold tracking-tight">Notes Hub</div>
-              <div className="text-[10px] text-muted-foreground">CampusBazar</div>
-            </div>
+          <Link
+            to="/"
+            aria-label="CampusBazar home"
+            className="flex items-center justify-center"
+          >
+            <CampusBazarLogo compact showText={false} />
           </Link>
 
           <div className="relative ml-auto flex-1">
@@ -385,13 +424,21 @@ function NotesHubPage() {
                         <Badge variant="secondary">{r.urgency_level}</Badge>
                       </div>
                       <div className="text-xs text-muted-foreground">{r.description}</div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => toast.message("Respond (chat) is coming soon")}
+                          onClick={() => handleRespond(r)}
+                          disabled={respond.isPending || (!!user && user.id === r.requester_id)}
                         >
-                          Respond
+                          {respond.isPending ? (
+                            <>
+                              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              Opening chat…
+                            </>
+                          ) : (
+                            "Respond"
+                          )}
                         </Button>
                         <Button
                           size="sm"
@@ -399,6 +446,11 @@ function NotesHubPage() {
                         >
                           Mark Fulfilled
                         </Button>
+                        {r.status === "in_progress" && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Chat opened
+                          </Badge>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

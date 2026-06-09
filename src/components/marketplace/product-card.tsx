@@ -29,7 +29,13 @@ function formatInr(amount: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
 }
 
-export function ProductCard({ product }: { product: ProductCardModel }) {
+export function ProductCard({
+  product,
+  onDeleted,
+}: {
+  product: ProductCardModel;
+  onDeleted?: (id: string) => void;
+}) {
   const navigate = useNavigate();
   const ownerId =
     product.seller?.user_id ?? (product as unknown as { seller_id?: string }).seller_id ?? null;
@@ -61,6 +67,7 @@ export function ProductCard({ product }: { product: ProductCardModel }) {
                 console.log("[ListingActions] onEdit product", product.id);
                 navigate({ to: "/upload-product", search: { edit: product.id } as never });
               }}
+              onDeleted={() => onDeleted?.(product.id)}
             />
           </div>
           <Link to="/product/$id" params={{ id: product.id }} className="block">

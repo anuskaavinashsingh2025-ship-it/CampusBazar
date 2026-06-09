@@ -6,10 +6,18 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   completeConversationForRequest,
   ensureConversationOnAccept,
+  getOrCreateConversation,
   invalidateChatQueries,
   type ChatMutationResult,
 } from "@/lib/chat";
-import { createNotification } from "@/lib/notifications";
+import {
+  createTransactionNotification,
+  ownerRequestActions,
+  acceptedActions,
+  rejectedActions,
+  completedActions,
+  viewListingUrl,
+} from "@/lib/transaction-notifications";
 import { enforceBanCheck } from "@/lib/ban-enforcement";
 
 export type ProductRequestStatus = "pending" | "accepted" | "rejected" | "completed" | "cancelled";
@@ -70,15 +78,25 @@ async function enrichProductRequests(rows: ProductRequestRow[]): Promise<Product
     }
   }
 
-  const profileMap = new Map<string, { display_name: string; avatar_url: string | null; hostel_block: string | null }>(
-    (profiles ?? []).map((p: { id: string; full_name: string | null; avatar_url: string | null; hostel_block: string | null }) => [
-      p.id,
-      {
-        display_name: p.full_name ?? "Student",
-        avatar_url: p.avatar_url,
-        hostel_block: p.hostel_block,
-      },
-    ]),
+  const profileMap = new Map<
+    string,
+    { display_name: string; avatar_url: string | null; hostel_block: string | null }
+  >(
+    (profiles ?? []).map(
+      (p: {
+        id: string;
+        full_name: string | null;
+        avatar_url: string | null;
+        hostel_block: string | null;
+      }) => [
+        p.id,
+        {
+          display_name: p.full_name ?? "Student",
+          avatar_url: p.avatar_url,
+          hostel_block: p.hostel_block,
+        },
+      ],
+    ),
   );
 
   return rows.map((r) => {
@@ -183,18 +201,35 @@ export function useCreateProductRequest() {
         .single();
       if (error) throw error;
 
-      const actionLabel = input.requestType === "offer" ? "offer" : "purchase request";
-      const buyerDetails = input.buyerName
-        ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}`
-        : "";
-      await createNotification({
-        userId: input.sellerId,
+      const conversationId = await getOrCreateConversation({
+        buyerId: input.buyerId,
+        sellerId: input.sellerId,
+        contextType: "product",
+        contextId: input.productId,
+        requestId: data.id,
+        listingTitle: input.productTitle,
+      });
+      const listingUrl = viewListingUrl("marketplace", input.productId);
+
+      await createTransactionNotification({
+        receiverId: input.sellerId,
+        senderId: input.buyerId,
         title: "New Purchase Request",
-        description: `You received a ${actionLabel} for "${input.productTitle}"${buyerDetails}.`,
+        description: "Someone is interested in purchasing your listing.",
         priority: "important",
         module: "marketplace",
         actionUrl: "/requests",
-        metadata: { requestId: data.id, productId: input.productId },
+        actions: ownerRequestActions({
+          conversationId,
+          listingUrl,
+          acceptLabel: "Accept Deal",
+          rejectLabel: "Reject Deal",
+        }),
+        conversationId,
+        relatedEntityId: data.id,
+        listingId: input.productId,
+        requestId: data.id,
+        buyerId: input.buyerId,
       });
 
       return data;
@@ -248,26 +283,11 @@ export function useUpdateProductRequest() {
         if (productErr) throw productErr;
       }
 
-      if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
-        try {
-          await createNotification({
-            userId: input.notifyUserId,
-            title: input.notificationTitle,
-            description: input.notificationDescription,
-            priority: input.status === "rejected" ? "important" : "informational",
-            module: "marketplace",
-            actionUrl: "/requests",
-            metadata: { requestId: input.requestId, productId: input.productId },
-          });
-        } catch (notifErr) {
-          console.error(
-            "[useUpdateProductRequest] Notification creation failed (non-blocking):",
-            notifErr,
-          );
-        }
-      }
-
-      if (input.status === "accepted" || input.status === "completed") {
+      if (
+        input.status === "accepted" ||
+        input.status === "completed" ||
+        input.status === "rejected"
+      ) {
         console.log("[useUpdateProductRequest] Status is accepted/completed, fetching request row");
         const { data: reqRow } = await supabase
           .from(REQUESTS_TABLE)
@@ -297,15 +317,73 @@ export function useUpdateProductRequest() {
               contextId: row.product_id,
               requestId: input.requestId,
               listingTitle: title,
-              notifyBuyer: true,
+              notifyBuyer: false,
             });
             console.log("[useUpdateProductRequest] Conversation ID returned:", conversationId);
-          } else {
+          } else if (input.status === "completed") {
+            conversationId = await getOrCreateConversation({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "product",
+              contextId: row.product_id,
+              requestId: input.requestId,
+              listingTitle: title,
+            });
             await completeConversationForRequest({
               buyerId: row.buyer_id,
               contextType: "product",
               contextId: row.product_id,
             });
+          } else {
+            conversationId = await getOrCreateConversation({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "product",
+              contextId: row.product_id,
+              requestId: input.requestId,
+              listingTitle: title,
+            });
+          }
+
+          if (input.notifyUserId && conversationId) {
+            const listingUrl = viewListingUrl("marketplace", row.product_id);
+            try {
+              await createTransactionNotification({
+                receiverId: input.notifyUserId,
+                senderId: row.seller_id,
+                title:
+                  input.status === "completed"
+                    ? "Transaction Completed"
+                    : input.status === "rejected"
+                      ? "Request Declined"
+                      : "Request Accepted",
+                description:
+                  input.status === "completed"
+                    ? "This transaction has been completed successfully."
+                    : input.status === "rejected"
+                      ? "The owner declined your request."
+                      : "Your request has been accepted by the owner.",
+                priority: "important",
+                module: "marketplace",
+                actionUrl: input.status === "rejected" ? listingUrl : `/chats/${conversationId}`,
+                actions:
+                  input.status === "completed"
+                    ? completedActions(`/chats/${conversationId}`)
+                    : input.status === "rejected"
+                      ? rejectedActions("marketplace", listingUrl)
+                      : acceptedActions(conversationId, listingUrl),
+                conversationId,
+                relatedEntityId: input.requestId,
+                listingId: row.product_id,
+                requestId: input.requestId,
+                buyerId: row.buyer_id,
+              });
+            } catch (notifErr) {
+              console.error(
+                "[useUpdateProductRequest] Notification creation failed (non-blocking):",
+                notifErr,
+              );
+            }
           }
         } else {
           console.error("[useUpdateProductRequest] Request row not found for ID:", input.requestId);

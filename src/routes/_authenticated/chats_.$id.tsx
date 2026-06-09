@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Archive, Loader2, Star } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
@@ -45,6 +45,11 @@ function ChatThreadPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { id } = Route.useParams();
+  // The `?focus=1` search param is added by the "Notes Request → Chat"
+  // integration so the message input is auto-focused after redirect.
+  const search = Route.useSearch() as unknown as { focus?: string } | undefined;
+  const shouldFocus = search?.focus === "1";
+  const composerRef = useRef<{ focus: () => void } | null>(null);
   const { data: conversation, isLoading: loadingConv } = useConversation(id, user?.id);
   const { data: messages = [], isLoading: loadingMsgs } = useMessages(id);
   const markRead = useMarkConversationRead(user?.id);
@@ -57,6 +62,19 @@ function ChatThreadPage() {
 
   useMessageRealtime(id);
   useUpdatePresence(user?.id);
+
+  // Belt-and-braces: if the chat page renders after the composer has
+  // mounted but the user just landed from the Respond button, re-focus
+  // the composer once the messages + conversation are ready.
+  useEffect(() => {
+    if (!shouldFocus) return;
+    if (loadingConv || loadingMsgs) return;
+    if (!conversation) return;
+    const t = window.setTimeout(() => {
+      composerRef.current?.focus();
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, [shouldFocus, loadingConv, loadingMsgs, conversation?.id]);
 
   const otherUserId =
     conversation && user
@@ -161,11 +179,13 @@ function ChatThreadPage() {
       />
 
       <ChatComposer
+        ref={composerRef}
         userId={user.id}
         conversationId={conversation.id}
         recipientId={otherUserId!}
         listingTitle={conversation.listing_title}
         disabled={!canSend}
+        autoFocus={shouldFocus}
       />
 
       <Dialog open={ratingOpen} onOpenChange={setRatingOpen}>

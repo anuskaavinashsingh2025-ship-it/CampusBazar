@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -36,6 +36,17 @@ const PRODUCT_IMAGES_TABLE = "product_images" as unknown as keyof Database["publ
 function MarketplacePage() {
   const search = Route.useSearch() as unknown as Record<string, string | undefined> | undefined;
   const selectedCategory = (search?.category as string | undefined) ?? null;
+
+  // Locally-hide listings that were just deleted, so the row disappears
+  // immediately without waiting for the 5s refetch.
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const handleLocalDelete = useCallback((id: string) => {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["marketplace_page", selectedCategory ?? "all"],
@@ -149,6 +160,11 @@ function MarketplacePage() {
     refetchInterval: 5000,
   });
 
+  const visibleProducts = useMemo(
+    () => products.filter((p) => !hiddenIds.has(p.id)),
+    [products, hiddenIds],
+  );
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <main className="mx-auto max-w-6xl px-4 py-6">
@@ -158,8 +174,10 @@ function MarketplacePage() {
             <div className="col-span-full py-16 text-center text-sm text-muted-foreground">
               Loading…
             </div>
-          ) : products.length ? (
-            products.map((p) => <ProductCard key={p.id} product={p} />)
+          ) : visibleProducts.length ? (
+            visibleProducts.map((p) => (
+              <ProductCard key={p.id} product={p} onDeleted={handleLocalDelete} />
+            ))
           ) : (
             <div className="col-span-full py-16 text-center text-sm text-muted-foreground">
               {selectedCategory

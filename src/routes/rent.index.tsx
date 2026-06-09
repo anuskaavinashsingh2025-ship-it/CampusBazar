@@ -7,7 +7,6 @@ import {
   Calculator,
   ChevronDown,
   FlaskConical,
-  GraduationCap,
   Guitar,
   Heart,
   Loader2,
@@ -28,6 +27,7 @@ import { useAuth } from "@/lib/auth";
 import ListingActions from "@/components/listing/listing-actions";
 import { getStoragePublicUrl } from "@/lib/storage-url";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -245,16 +245,12 @@ function RentFeedPage() {
     <div className="min-h-screen bg-gradient-to-b from-sky-50/40 to-background pb-24">
       <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <Link to="/" className="flex shrink-0 items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <div className="hidden leading-tight sm:block">
-              <div className="text-sm font-bold tracking-tight">CampusBazar</div>
-              <div className="text-[10px] text-muted-foreground">
-                by the students, for the students
-              </div>
-            </div>
+          <Link
+            to="/"
+            aria-label="CampusBazar home"
+            className="flex shrink-0 items-center justify-center"
+          >
+            <CampusBazarLogo compact showText={false} />
           </Link>
 
           <div className="relative mx-auto hidden max-w-xl flex-1 md:block">

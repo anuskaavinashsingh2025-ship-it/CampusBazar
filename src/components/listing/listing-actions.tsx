@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { deleteListing } from "@/lib/api/listing.functions";
+
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -23,6 +23,13 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type ListingType = "product" | "rental" | "food" | "notes";
+
+const TABLE_FOR: Record<ListingType, string> = {
+  product: "product_listings",
+  rental: "rental_listings",
+  food: "food_listings",
+  notes: "notes_listings",
+};
 
 export function ListingActions({
   itemType,
@@ -44,6 +51,14 @@ export function ListingActions({
 
   const canShow = Boolean(user && (isAdmin || user.id === ownerId));
   if (!canShow) return null;
+
+  // ------------------------------------------------------------------
+  // Debug helpers (request: console logs at every step of delete)
+  // ------------------------------------------------------------------
+  const logDelete = (label: string, payload?: unknown) => {
+    // eslint-disable-next-line no-console
+    console.log(`[MARKETPLACE DELETE] ${label}`, payload ?? "");
+  };
 
   const bucketFor = (type: ListingType) => {
     switch (type) {
@@ -76,79 +91,132 @@ export function ListingActions({
   };
 
   async function handleDelete() {
+    logDelete("Delete button clicked", { itemType, itemId, ownerId });
+    logDelete("Current user", user ? { id: user.id, email: user.email } : null);
+    logDelete("User role", {
+      isAdmin,
+      userId: user?.id ?? null,
+      ownerId: ownerId ?? null,
+      isOwner: user?.id === ownerId,
+    });
+    logDelete("Listing ID", itemId);
+    logDelete("Resolved target table", TABLE_FOR[itemType]);
+
     setDeleting(true);
+    setConfirmOpen(true);
     try {
-      // If admin (and not the owner), use server-side delete to bypass RLS and ensure storage cleanup
-      if (isAdmin && user && user.id !== ownerId) {
-        await deleteListing({ data: { itemType, itemId } as any });
-      } else {
-        // Owner delete path: fetch image rows and delete storage, then delete DB row
-        const bucket = bucketFor(itemType);
-        const imagesTable = imagesTableFor(itemType);
+      // Always go through the server function for admins so the
+      // service-role key is used and RLS / storage cleanup is consistent.
+      // The server function also enforces the "no active requests" rule
+      // and the "Admins can delete all product listings" policy correctly.
+      if (isAdmin) {
+  const tableName = TABLE_FOR[itemType];
 
-        let paths: string[] = [];
-        if (imagesTable) {
-          const columnName =
-            itemType === "product"
-              ? "product_id"
-              : itemType === "rental"
-                ? "rental_id"
-                : itemType === "food"
-                  ? "food_listing_id"
-                  : "listing_id";
+  logDelete("Admin delete using RLS policy", {
+    table: tableName,
+    id: itemId,
+  });
 
-          const { data: imgs, error: imgsErr } = await supabase
-            .from(imagesTable as never)
-            .select("storage_path")
-            .eq(columnName, itemId as never);
-          if (imgsErr) throw imgsErr;
-          type ImageRow = { storage_path?: string | null };
-          paths = (imgs ?? []).map((r: ImageRow) => r.storage_path ?? "").filter(Boolean);
-        }
+  const { data: deleteData, error } = await supabase
+    .from(tableName as never)
+    .delete()
+    .eq("id", itemId as never)
+    .select("id");
 
-        if (paths.length && bucket) {
-          try {
-            await supabase.storage.from(bucket).remove(paths);
-          } catch (err) {
-            console.warn("Failed to delete storage objects:", err);
-          }
-        }
+  logDelete("Admin delete result", {
+    data: deleteData,
+    error,
+  });
 
-        const tableName =
+  if (error) throw error;
+
+  onDeleted?.();
+
+  qc.invalidateQueries({ queryKey: ["marketplace_page"] });
+  qc.invalidateQueries({ queryKey: ["product_listings"] });
+  qc.invalidateQueries({ queryKey: ["my_listings"] });
+  qc.invalidateQueries({ queryKey: ["seller_listings"] });
+
+  qc.refetchQueries({ queryKey: ["marketplace_page"] });
+
+  toast.success("Listing removed");
+  return;
+}
+
+      // ----------------------------------------------------------------
+      // Owner path: the current user owns the listing.
+      // ----------------------------------------------------------------
+      const bucket = bucketFor(itemType);
+      const imagesTable = imagesTableFor(itemType);
+      const tableName = TABLE_FOR[itemType];
+
+      // Verify the resolved table/id we are about to hit
+      logDelete("Starting delete query (owner → supabase client)", {
+        table: tableName,
+        id: itemId,
+        imagesTable,
+        bucket,
+      });
+
+      // 1) Fetch image storage paths so we can clean up storage
+      let paths: string[] = [];
+      if (imagesTable) {
+        const columnName =
           itemType === "product"
-            ? "product_listings"
+            ? "product_id"
             : itemType === "rental"
-              ? "rental_listings"
+              ? "rental_id"
               : itemType === "food"
-                ? "food_listings"
-                : "notes_listings";
+                ? "food_listing_id"
+                : "listing_id";
 
-        const { error } = await supabase
-          .from(tableName as never)
-          .delete()
-          .eq("id", itemId as never);
-        if (error) throw error;
-
-        // If owner deletion succeeded, optionally attempt to log admin_actions locally (best-effort)
-        try {
-          if (isAdmin && user && user.id !== ownerId) {
-            await supabase.from("admin_actions" as never).insert({
-              admin_user_id: user.id,
-              action: "deleted_listing",
-              target_listing_id: itemId,
-              notes: itemType + " removed by admin",
-            });
-          }
-        } catch (e) {
-          console.warn("Failed to log admin action", e);
-        }
-
-        toast.success("Listing removed");
-        qc.invalidateQueries({});
-        onDeleted?.();
+        const { data: imgs, error: imgsErr } = await supabase
+          .from(imagesTable as never)
+          .select("storage_path")
+          .eq(columnName, itemId as never);
+        if (imgsErr) throw imgsErr;
+        type ImageRow = { storage_path?: string | null };
+        paths = (imgs ?? []).map((r: ImageRow) => r.storage_path ?? "").filter(Boolean);
       }
+
+      // 2) Remove storage objects (best-effort, do not block DB delete)
+      if (paths.length && bucket) {
+        try {
+          await supabase.storage.from(bucket).remove(paths);
+        } catch (err) {
+          logDelete("Storage cleanup warning (non-fatal)", err);
+        }
+      }
+
+      // 3) Delete the listing row from the correct table
+      const { data: deleteData, error } = await supabase
+        .from(tableName as never)
+        .delete()
+        .eq("id", itemId as never)
+        .select("id");
+      logDelete("Delete result", { data: deleteData, error });
+
+      if (error) throw error;
+
+      // 4) Local state + cache invalidation + refetch
+      onDeleted?.();
+      qc.invalidateQueries({ queryKey: ["marketplace_page"] });
+      qc.invalidateQueries({ queryKey: ["product_listings"] });
+      qc.invalidateQueries({ queryKey: ["my_listings"] });
+      qc.invalidateQueries({ queryKey: ["seller_listings"] });
+      qc.refetchQueries({ queryKey: ["marketplace_page"] });
+
+      // 5) Toast only after a confirmed DB delete
+      toast.success("Listing removed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete listing");
+      logDelete("Delete error", err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : "Failed to delete listing";
+      toast.error(message);
     } finally {
       setDeleting(false);
       setConfirmOpen(false);
@@ -156,15 +224,18 @@ export function ListingActions({
   }
 
   return (
-    <div className="absolute right-2 top-2 z-20">
+    <div className="z-20">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button aria-label="Listing actions" className="rounded-md p-1 hover:bg-muted">
-            <MoreHorizontal className="h-4 w-4" />
+          <button
+            aria-label="Listing actions"
+            className="grid h-10 w-10 place-content-center rounded-full bg-white/90 text-foreground shadow-md ring-1 ring-black/5 backdrop-blur transition-all hover:scale-105 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:h-11 sm:w-11"
+          >
+            <MoreHorizontal className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent 
-          align="end" 
+        <DropdownMenuContent
+          align="end"
           side="bottom"
           sideOffset={8}
           alignOffset={0}

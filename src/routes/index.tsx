@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  GraduationCap,
   Heart,
   MessageSquare,
   User,
@@ -12,6 +11,10 @@ import {
   Plus,
   Home,
   Grid2X2,
+  Mail,
+  Linkedin,
+  Code,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,6 +23,7 @@ import { useAuth } from "@/lib/auth";
 import type { Database } from "@/integrations/supabase/types";
 
 import { CategoryStrip } from "@/components/category-strip";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 import ThemeToggle from "@/components/theme/theme-toggle";
 import { HubNavStrip } from "@/components/hub-nav-strip";
 import { RecentlyViewedSection } from "@/components/listing/recently-viewed-section";
@@ -553,14 +557,12 @@ function MarketplaceHome() {
             </SheetContent>
           </Sheet>
 
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <div className="leading-tight">
-              <div className="text-sm font-bold tracking-tight">CampusBazar</div>
-              <div className="text-[10px] text-muted-foreground">for VIT students</div>
-            </div>
+          <Link
+            to="/"
+            aria-label="CampusBazar home"
+            className="flex items-center justify-center"
+          >
+            <CampusBazarLogo compact showText={false} />
           </Link>
 
           <div className="relative ml-auto flex-1">
@@ -691,18 +693,141 @@ function MarketplaceHome() {
 
         <div className="mt-10 space-y-6">
           <Separator />
+
+          {/* About Us Section */}
           <section>
-            <div className="text-sm font-semibold">About us</div>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <h2 className="text-base font-bold">About us</h2>
+            <p className="mt-3 text-sm text-muted-foreground">
               CampusBazar is a VIT-only marketplace built for student life — buy and sell essentials
               with verified students.
             </p>
           </section>
+
+          {/* Contact Us Section */}
           <section id="contact-us">
-            <div className="text-sm font-semibold">Contact us</div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Email: <span className="font-medium text-foreground">support@campusbazar.com</span>
-            </p>
+            <h2 className="text-base font-bold">Contact us</h2>
+            <div className="mt-4 grid gap-6 sm:grid-cols-2">
+              {/* Alok Kale Card */}
+              <div className="group rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1">
+                {/* Profile Image */}
+                <div className="flex justify-center">
+                  <div className="h-56 w-56 overflow-hidden rounded-full border-4 border-background bg-muted">
+                    <img
+                      src="/images/alok.jpeg"
+                      alt="Alok Kale"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                </div>
+
+                {/* Role Label */}
+                <div className="mt-6 flex justify-center">
+                  <span className="inline-block rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-600">
+                    PROJECT HEAD
+                  </span>
+                </div>
+
+                {/* Name */}
+                <h3 className="mt-4 text-center text-xl font-bold text-foreground">Alok Kale</h3>
+
+                {/* Subtitle */}
+                <p className="text-center text-sm text-muted-foreground">CampusBazar Project Head</p>
+
+                {/* Divider */}
+                <div className="my-4 h-px bg-border"></div>
+
+                {/* Email */}
+                <a
+                  href="mailto:kale.alokavinash2025@vitstudent.ac.in"
+                  className="flex items-center gap-3 rounded px-3 py-2 text-sm transition-colors hover:bg-muted"
+                >
+                  <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="break-all text-foreground">kale.alokavinash2025@vitstudent.ac.in</span>
+                </a>
+
+                {/* LinkedIn */}
+                <a
+                  href="https://linkedin.com/in/alok-kale-a23aa4385"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded px-3 py-2 text-sm transition-colors hover:bg-muted"
+                >
+                  <Linkedin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate text-foreground">linkedin.com/in/alok-kale-a23aa4385</span>
+                  <ExternalLink className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                </a>
+              </div>
+
+              {/* Anuska Singh Card */}
+              <div className="group rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1">
+                {/* Profile Image */}
+                <div className="flex justify-center">
+                  <div className="h-56 w-56 overflow-hidden rounded-full border-4 border-background bg-muted">
+                    <img
+                      src="/images/anuska.jpeg"
+                      alt="Anuska Singh"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                </div>
+
+                {/* Role Label */}
+                <div className="mt-6 flex justify-center">
+                  <span className="inline-block rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-600">
+                    PROJECT HEAD
+                  </span>
+                </div>
+
+                {/* Name */}
+                <h3 className="mt-4 text-center text-xl font-bold text-foreground">Anuska Singh</h3>
+
+                {/* Subtitle */}
+                <p className="text-center text-sm text-muted-foreground">CampusBazar Project Head</p>
+
+                {/* Divider */}
+                <div className="my-4 h-px bg-border"></div>
+
+                {/* Email */}
+                <a
+                  href="mailto:anuska.avinashsingh2025@vitstudent.ac.in"
+                  className="flex items-center gap-3 rounded px-3 py-2 text-sm transition-colors hover:bg-muted"
+                >
+                  <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="break-all text-foreground">anuska.avinashsingh2025@vitstudent.ac.in</span>
+                </a>
+
+                {/* LinkedIn */}
+                <a
+                  href="https://linkedin.com/in/anuska-singh-269a0136b"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded px-3 py-2 text-sm transition-colors hover:bg-muted"
+                >
+                  <Linkedin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate text-foreground">linkedin.com/in/anuska-singh-269a0136b</span>
+                  <ExternalLink className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                </a>
+              </div>
+            </div>
+          </section>
+
+          {/* Credits Section */}
+          <section>
+            <h2 className="text-base font-bold">Credits</h2>
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="flex items-center gap-3 rounded-lg bg-muted/30 px-4 py-3">
+                <Code className="h-5 w-5 flex-shrink-0 text-orange-600" />
+                <span className="text-sm font-medium text-foreground">Chintala Keshav Karthik</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-lg bg-muted/30 px-4 py-3">
+                <Code className="h-5 w-5 flex-shrink-0 text-orange-600" />
+                <span className="text-sm font-medium text-foreground">Sneha Kumari</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-lg bg-muted/30 px-4 py-3">
+                <Code className="h-5 w-5 flex-shrink-0 text-orange-600" />
+                <span className="text-sm font-medium text-foreground">Sakshi Saraf</span>
+              </div>
+            </div>
           </section>
         </div>
       </main>

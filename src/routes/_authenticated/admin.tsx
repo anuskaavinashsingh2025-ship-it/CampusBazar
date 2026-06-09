@@ -105,6 +105,7 @@ function AdminPortalPage() {
   const [banModalOpen, setBanModalOpen] = useState(false);
   const [banTargetUserId, setBanTargetUserId] = useState<string | null>(null);
   const [banTargetUserName, setBanTargetUserName] = useState<string | null>(null);
+  const [banCurrentReport, setBanCurrentReport] = useState<ReportRow | null>(null);
 
   const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
 
@@ -632,6 +633,17 @@ function AdminPortalPage() {
             </div>
           ) : (
             pending.map((r) => {
+              // Log each report to see if seller_user_id is populated
+              if (!r.seller_user_id && r.target_type !== "seller") {
+                console.log("[ADMIN] Report rendered without seller_user_id", {
+                  reportId: r.id,
+                  targetType: r.target_type,
+                  seller_user_id: r.seller_user_id,
+                  seller_user_idType: typeof r.seller_user_id,
+                  reason: r.reason,
+                });
+              }
+              
               const isExpanded = expandedReports.has(r.id);
               const target = targetFor(r);
               const targetUrl = target?.url ?? null;
@@ -828,8 +840,19 @@ function AdminPortalPage() {
                           size="sm"
                           variant="destructive"
                           onClick={() => {
+                            console.log("[ADMIN] Ban Seller clicked", {
+                              reportId: r.id,
+                              reportTargetType: r.target_type,
+                              reporterUserId: r.reporter_id,
+                              reportSellerUserId: r.seller_user_id,
+                              reportSellerUserIdType: typeof r.seller_user_id,
+                              reportSellerUserIdIsNull: r.seller_user_id === null,
+                              reportSellerUserIdIsUndefined: r.seller_user_id === undefined,
+                              reportSellerUserIdLength: r.seller_user_id?.length,
+                            });
                             setBanTargetUserId(r.seller_user_id!);
                             setBanTargetUserName(sellerName(r) ?? "reported seller");
+                            setBanCurrentReport(r);
                             setBanModalOpen(true);
                           }}
                         >
@@ -1144,6 +1167,17 @@ function AdminPortalPage() {
         onOpenChange={setBanModalOpen}
         targetUserId={banTargetUserId ?? ""}
         targetUserName={banTargetUserName ?? undefined}
+        reportContext={banCurrentReport ? {
+          reportId: banCurrentReport.id,
+          targetType: banCurrentReport.target_type,
+          reporterId: banCurrentReport.reporter_id,
+          sellerUserId: banCurrentReport.seller_user_id,
+        } : null}
+        onBanned={async () => {
+          // Refetch all admin queries after successful ban
+          await queryClient.invalidateQueries({ queryKey: ["admin"] });
+          setBanCurrentReport(null);
+        }}
       />
     </div>
   );

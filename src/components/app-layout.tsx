@@ -3,6 +3,7 @@ import { Bell, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 import { ThemeProvider } from "@/lib/theme";
 import ThemeToggle from "@/components/theme/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -18,11 +19,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth";
-import { useUnreadNotificationCount } from "@/lib/notifications";
+import { useNotificationRealtime, useUnreadNotificationCount } from "@/lib/notifications";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, profile, signOut } = useAuth();
   const { data: unreadCount = 0 } = useUnreadNotificationCount(user?.id);
+  
 
   const initials = (profile?.full_name ?? user?.email ?? "U")
     .split(" ")
@@ -42,8 +44,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="flex min-h-screen w-full">
           <AppSidebar />
           <div className="flex min-w-0 flex-1 flex-col">
-            <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4">
-              <SidebarTrigger />
+            <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-card px-4">
+              <div className="flex items-center gap-2">
+                <SidebarTrigger />
+                <Link to="/" aria-label="CampusBazar home" className="flex items-center">
+                  <CampusBazarLogo compact showText />
+                </Link>
+              </div>
               <div className="flex flex-1 items-center justify-end gap-1">
                 {user && (
                   <div className="flex items-center gap-1">

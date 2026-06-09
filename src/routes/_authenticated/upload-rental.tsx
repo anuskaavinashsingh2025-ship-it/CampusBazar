@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState, useEffect, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { GraduationCap, Image as ImageIcon, Loader2, ArrowLeft } from "lucide-react";
+import { Image as ImageIcon, Loader2, ArrowLeft } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 
 const CATEGORY_OPTIONS = [
   "Books",
@@ -234,11 +235,12 @@ function UploadRentalPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <span className="text-sm font-bold tracking-tight">Upload rental</span>
+          <Link
+            to="/"
+            aria-label="CampusBazar home"
+            className="flex items-center justify-center"
+          >
+            <CampusBazarLogo compact showText={false} />
           </Link>
         </div>
       </header>

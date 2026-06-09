@@ -3,7 +3,6 @@ import {
   Bell,
   Bike,
   FileText,
-  GraduationCap,
   Heart,
   HelpCircle,
   Home,
@@ -33,9 +32,10 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 import { useAuth } from "@/lib/auth";
 import { useUnreadChatCount } from "@/lib/chat";
-import { useUnreadNotificationCount } from "@/lib/notifications";
+import { useNotificationRealtime, useUnreadNotificationCount } from "@/lib/notifications";
 import { supabase } from "@/integrations/supabase/client";
 
 const mainItems = [
@@ -67,6 +67,7 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { data: unreadCount = 0 } = useUnreadNotificationCount(user?.id);
   const { data: unreadChats = 0 } = useUnreadChatCount(user?.id);
+  useNotificationRealtime(user?.id);
 
   const { data: sellerProfile } = useQuery({
     queryKey: ["seller_profile_self", user?.id ?? null],
@@ -107,12 +108,13 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <GraduationCap className="h-5 w-5" />
-          </span>
-          <span className="text-lg font-bold tracking-tight">CampusBazar</span>
-        </div>
+        <Link
+          to="/"
+          aria-label="CampusBazar home"
+          className="group/sidebar-logo flex items-center justify-center px-2 py-2"
+        >
+          <CampusBazarLogo size="lg" />
+        </Link>
       </SidebarHeader>
 
       <SidebarContent>

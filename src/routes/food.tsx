@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  GraduationCap,
   Heart,
   Loader2,
   MessageSquare,
@@ -18,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 import ListingActions from "@/components/listing/listing-actions";
 
 import { Button } from "@/components/ui/button";
@@ -229,14 +229,12 @@ function FoodHubPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <div className="leading-tight">
-              <div className="text-sm font-bold tracking-tight">Food Hub</div>
-              <div className="text-[10px] text-muted-foreground">Packaged & branded only</div>
-            </div>
+          <Link
+            to="/"
+            aria-label="CampusBazar home"
+            className="flex items-center justify-center"
+          >
+            <CampusBazarLogo compact showText={false} />
           </Link>
 
           <div className="ml-auto flex items-center gap-2">

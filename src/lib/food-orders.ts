@@ -6,10 +6,18 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   completeConversationForRequest,
   ensureConversationOnAccept,
+  getOrCreateConversation,
   invalidateChatQueries,
   type ChatMutationResult,
 } from "@/lib/chat";
-import { createNotification } from "@/lib/notifications";
+import {
+  createTransactionNotification,
+  ownerRequestActions,
+  acceptedActions,
+  rejectedActions,
+  completedActions,
+  viewListingUrl,
+} from "@/lib/transaction-notifications";
 import { enforceBanCheck } from "@/lib/ban-enforcement";
 
 export type FoodOrderStatus = "pending" | "accepted" | "rejected" | "completed" | "cancelled";
@@ -107,14 +115,35 @@ export function useCreateFoodOrder() {
         .single();
       if (error) throw error;
 
-      await createNotification({
-        userId: input.sellerId,
-        title: "Food Order Received",
-        description: `You received an order for "${input.productName}".`,
+      const conversationId = await getOrCreateConversation({
+        buyerId: input.buyerId,
+        sellerId: input.sellerId,
+        contextType: "food",
+        contextId: input.foodListingId,
+        requestId: data.id,
+        listingTitle: input.productName,
+      });
+      const listingUrl = viewListingUrl("food", input.foodListingId);
+
+      await createTransactionNotification({
+        receiverId: input.sellerId,
+        senderId: input.buyerId,
+        title: "New Purchase Request",
+        description: "Someone is interested in purchasing your listing.",
         priority: "important",
         module: "food",
         actionUrl: "/requests",
-        metadata: { orderId: data.id, foodListingId: input.foodListingId },
+        actions: ownerRequestActions({
+          conversationId,
+          listingUrl,
+          acceptLabel: "Accept Deal",
+          rejectLabel: "Reject Deal",
+        }),
+        conversationId,
+        relatedEntityId: data.id,
+        listingId: input.foodListingId,
+        requestId: data.id,
+        buyerId: input.buyerId,
       });
 
       return data;
@@ -157,26 +186,11 @@ export function useUpdateFoodOrder() {
       }
       console.log("[useUpdateFoodOrder] Status updated to:", input.status);
 
-      if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
-        try {
-          await createNotification({
-            userId: input.notifyUserId,
-            title: input.notificationTitle,
-            description: input.notificationDescription,
-            priority: input.status === "rejected" ? "important" : "informational",
-            module: "food",
-            actionUrl: "/requests",
-            metadata: { orderId: input.orderId },
-          });
-        } catch (notifErr) {
-          console.error(
-            "[useUpdateFoodOrder] Notification creation failed (non-blocking):",
-            notifErr,
-          );
-        }
-      }
-
-      if (input.status === "accepted" || input.status === "completed") {
+      if (
+        input.status === "accepted" ||
+        input.status === "completed" ||
+        input.status === "rejected"
+      ) {
         console.log("[useUpdateFoodOrder] Status is accepted/completed, fetching order row");
         const { data: orderRow } = await supabase
           .from(ORDERS_TABLE)
@@ -211,15 +225,73 @@ export function useUpdateFoodOrder() {
               contextId: row.food_listing_id,
               requestId: input.orderId,
               listingTitle: title,
-              notifyBuyer: true,
+              notifyBuyer: false,
             });
             console.log("[useUpdateFoodOrder] Conversation ID returned:", conversationId);
-          } else {
+          } else if (input.status === "completed") {
+            conversationId = await getOrCreateConversation({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "food",
+              contextId: row.food_listing_id,
+              requestId: input.orderId,
+              listingTitle: title,
+            });
             await completeConversationForRequest({
               buyerId: row.buyer_id,
               contextType: "food",
               contextId: row.food_listing_id,
             });
+          } else {
+            conversationId = await getOrCreateConversation({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "food",
+              contextId: row.food_listing_id,
+              requestId: input.orderId,
+              listingTitle: title,
+            });
+          }
+
+          if (input.notifyUserId && conversationId) {
+            const listingUrl = viewListingUrl("food", row.food_listing_id);
+            try {
+              await createTransactionNotification({
+                receiverId: input.notifyUserId,
+                senderId: row.seller_id,
+                title:
+                  input.status === "completed"
+                    ? "Transaction Completed"
+                    : input.status === "rejected"
+                      ? "Request Declined"
+                      : "Request Accepted",
+                description:
+                  input.status === "completed"
+                    ? "This transaction has been completed successfully."
+                    : input.status === "rejected"
+                      ? "The owner declined your request."
+                      : "Your request has been accepted by the owner.",
+                priority: "important",
+                module: "food",
+                actionUrl: input.status === "rejected" ? listingUrl : `/chats/${conversationId}`,
+                actions:
+                  input.status === "completed"
+                    ? completedActions(`/chats/${conversationId}`)
+                    : input.status === "rejected"
+                      ? rejectedActions("food", listingUrl)
+                      : acceptedActions(conversationId, listingUrl),
+                conversationId,
+                relatedEntityId: input.orderId,
+                listingId: row.food_listing_id,
+                requestId: input.orderId,
+                buyerId: row.buyer_id,
+              });
+            } catch (notifErr) {
+              console.error(
+                "[useUpdateFoodOrder] Notification creation failed (non-blocking):",
+                notifErr,
+              );
+            }
           }
         } else {
           console.error("[useUpdateFoodOrder] Order row not found for ID:", input.orderId);

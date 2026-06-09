@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, CalendarRange, GraduationCap, Loader2, MapPin } from "lucide-react";
+import { ArrowLeft, CalendarRange, Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ import {
 import { HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
 import { useTrackListingView } from "@/lib/listing-views";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 import { ChatSellerButton } from "@/components/listing/chat-seller-button";
 import { ListingGallery } from "@/components/listing/listing-gallery";
 import { ListingStats } from "@/components/listing/listing-stats";
@@ -311,11 +312,12 @@ function RentDetailsPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <span className="text-sm font-bold tracking-tight">CampusBazar</span>
+          <Link
+            to="/"
+            aria-label="CampusBazar home"
+            className="flex items-center justify-center"
+          >
+            <CampusBazarLogo compact showText={false} />
           </Link>
         </div>
       </header>

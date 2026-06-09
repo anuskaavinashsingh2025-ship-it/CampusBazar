@@ -6,10 +6,18 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   completeConversationForRequest,
   ensureConversationOnAccept,
+  getOrCreateConversation,
   invalidateChatQueries,
   type ChatMutationResult,
 } from "@/lib/chat";
-import { createNotification } from "@/lib/notifications";
+import {
+  createTransactionNotification,
+  ownerRequestActions,
+  acceptedActions,
+  rejectedActions,
+  completedActions,
+  viewListingUrl,
+} from "@/lib/transaction-notifications";
 import { enforceBanCheck } from "@/lib/ban-enforcement";
 
 export type NotesPurchaseStatus = "pending" | "accepted" | "rejected" | "completed" | "cancelled";
@@ -106,17 +114,35 @@ export function useCreateNotesPurchase() {
         .single();
       if (error) throw error;
 
-      const buyerDetails = input.buyerName
-        ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}`
-        : "";
-      await createNotification({
-        userId: input.sellerId,
-        title: "Notes Purchase Request",
-        description: `You received a request for "${input.listingTitle}"${buyerDetails}.`,
+      const conversationId = await getOrCreateConversation({
+        buyerId: input.buyerId,
+        sellerId: input.sellerId,
+        contextType: "notes",
+        contextId: input.notesListingId,
+        requestId: data.id,
+        listingTitle: input.listingTitle,
+      });
+      const listingUrl = viewListingUrl("notes", input.notesListingId);
+
+      await createTransactionNotification({
+        receiverId: input.sellerId,
+        senderId: input.buyerId,
+        title: "New Purchase Request",
+        description: "Someone is interested in purchasing your listing.",
         priority: "important",
         module: "notes",
         actionUrl: "/requests",
-        metadata: { requestId: data.id, notesListingId: input.notesListingId },
+        actions: ownerRequestActions({
+          conversationId,
+          listingUrl,
+          acceptLabel: "Accept Deal",
+          rejectLabel: "Reject Deal",
+        }),
+        conversationId,
+        relatedEntityId: data.id,
+        listingId: input.notesListingId,
+        requestId: data.id,
+        buyerId: input.buyerId,
       });
 
       return data;
@@ -159,26 +185,11 @@ export function useUpdateNotesPurchase() {
       }
       console.log("[useUpdateNotesPurchase] Status updated to:", input.status);
 
-      if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
-        try {
-          await createNotification({
-            userId: input.notifyUserId,
-            title: input.notificationTitle,
-            description: input.notificationDescription,
-            priority: input.status === "rejected" ? "important" : "informational",
-            module: "notes",
-            actionUrl: "/requests",
-            metadata: { requestId: input.requestId },
-          });
-        } catch (notifErr) {
-          console.error(
-            "[useUpdateNotesPurchase] Notification creation failed (non-blocking):",
-            notifErr,
-          );
-        }
-      }
-
-      if (input.status === "accepted" || input.status === "completed") {
+      if (
+        input.status === "accepted" ||
+        input.status === "completed" ||
+        input.status === "rejected"
+      ) {
         console.log("[useUpdateNotesPurchase] Status is accepted/completed, fetching request row");
         const { data: reqRow } = await supabase
           .from(REQUESTS_TABLE)
@@ -212,15 +223,73 @@ export function useUpdateNotesPurchase() {
               contextId: row.notes_listing_id,
               requestId: input.requestId,
               listingTitle: title,
-              notifyBuyer: true,
+              notifyBuyer: false,
             });
             console.log("[useUpdateNotesPurchase] Conversation ID returned:", conversationId);
-          } else {
+          } else if (input.status === "completed") {
+            conversationId = await getOrCreateConversation({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "notes",
+              contextId: row.notes_listing_id,
+              requestId: input.requestId,
+              listingTitle: title,
+            });
             await completeConversationForRequest({
               buyerId: row.buyer_id,
               contextType: "notes",
               contextId: row.notes_listing_id,
             });
+          } else {
+            conversationId = await getOrCreateConversation({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "notes",
+              contextId: row.notes_listing_id,
+              requestId: input.requestId,
+              listingTitle: title,
+            });
+          }
+
+          if (input.notifyUserId && conversationId) {
+            const listingUrl = viewListingUrl("notes", row.notes_listing_id);
+            try {
+              await createTransactionNotification({
+                receiverId: input.notifyUserId,
+                senderId: row.seller_id,
+                title:
+                  input.status === "completed"
+                    ? "Transaction Completed"
+                    : input.status === "rejected"
+                      ? "Request Declined"
+                      : "Request Accepted",
+                description:
+                  input.status === "completed"
+                    ? "This transaction has been completed successfully."
+                    : input.status === "rejected"
+                      ? "The owner declined your request."
+                      : "Your request has been accepted by the owner.",
+                priority: "important",
+                module: "notes",
+                actionUrl: input.status === "rejected" ? listingUrl : `/chats/${conversationId}`,
+                actions:
+                  input.status === "completed"
+                    ? completedActions(`/chats/${conversationId}`)
+                    : input.status === "rejected"
+                      ? rejectedActions("notes", listingUrl)
+                      : acceptedActions(conversationId, listingUrl),
+                conversationId,
+                relatedEntityId: input.requestId,
+                listingId: row.notes_listing_id,
+                requestId: input.requestId,
+                buyerId: row.buyer_id,
+              });
+            } catch (notifErr) {
+              console.error(
+                "[useUpdateNotesPurchase] Notification creation failed (non-blocking):",
+                notifErr,
+              );
+            }
           }
         } else {
           console.error("[useUpdateNotesPurchase] Request row not found for ID:", input.requestId);

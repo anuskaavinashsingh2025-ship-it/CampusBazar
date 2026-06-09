@@ -22,6 +22,7 @@ import {
   timeAgo,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
+ 
   useNotifications,
   type NotificationModule,
   type NotificationRow,
@@ -70,6 +71,7 @@ function NotificationsPage() {
   const { data: notifications = [], isLoading } = useNotifications(user?.id);
   const markRead = useMarkNotificationRead(user?.id);
   const markAllRead = useMarkAllNotificationsRead(user?.id);
+  useNotificationRealtime(user?.id);
 
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
@@ -111,6 +113,11 @@ function NotificationsPage() {
     if (n.action_url) {
       void navigate({ to: n.action_url as "/rental-requests" });
     }
+  };
+
+  const openAction = (n: NotificationRow, url: string) => {
+    if (!n.read) markRead.mutate(n.id);
+    void navigate({ to: url as "/rental-requests" });
   };
 
   const applyFilters = () => {
@@ -292,6 +299,12 @@ function NotificationsPage() {
           {filtered.map((n) => {
             const Icon = MODULE_ICONS[n.module];
             const style = PRIORITY_STYLES[n.priority];
+            const actions = Array.isArray(n.metadata?.actions)
+              ? (n.metadata.actions as Array<{ label?: unknown; url?: unknown }>).filter(
+                  (action): action is { label: string; url: string } =>
+                    typeof action.label === "string" && typeof action.url === "string",
+                )
+              : [];
             return (
               <Card
                 key={n.id}
@@ -330,6 +343,24 @@ function NotificationsPage() {
                     <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
                       {n.description}
                     </p>
+                    {actions.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {actions.map((action) => (
+                          <Button
+                            key={`${n.id}-${action.label}`}
+                            type="button"
+                            variant={action.label === "Open Chat" ? "default" : "outline"}
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openAction(n, action.url);
+                            }}
+                          >
+                            {action.label}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                     <p className="mt-2 text-xs text-muted-foreground">
                       {timeAgo(n.created_at)} · {MODULE_LABELS[n.module]}
                     </p>

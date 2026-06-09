@@ -89,6 +89,11 @@ export function BanModal({
 
     setSubmitting(true);
     try {
+      console.log("[BanModal] ADMIN USER CONTEXT:", {
+        adminUserId: user.id,
+        adminEmail: user.email,
+      });
+
       // Calculate banned_until based on duration
       let bannedUntil: string | null = null;
       if (duration !== "permanent") {
@@ -108,36 +113,81 @@ export function BanModal({
         banned_by: user.id,
       };
 
-      console.log("[BanModal] Updating profile ban status", {
+      console.log("[BanModal] BEFORE UPDATE:", {
         reportId: reportContext?.reportId ?? null,
-        targetType: reportContext?.targetType ?? null,
+        reportTargetType: reportContext?.targetType ?? null,
         reporterId: reportContext?.reporterId ?? null,
-        sellerUserId: reportContext?.sellerUserId ?? null,
-        finalUserIdBeingBanned: targetUserId,
+        reportSellerUserId: reportContext?.sellerUserId ?? null,
+        targetUserIdReceived: targetUserId,
+        targetUserIdType: typeof targetUserId,
+        targetUserIdLength: targetUserId?.length,
+        targetUserIdIsEmpty: targetUserId === "",
+        targetUserIdIsNull: targetUserId === null,
+        targetUserIdTrimmed: targetUserId?.trim(),
         updatePayload,
       });
 
-      const { data: updatedProfile, error } = await supabase
+      // Execute UPDATE with .select() to see exactly which rows were updated
+      console.log("[BanModal] Executing UPDATE query...", {
+        whereClauseField: "id",
+        whereClauseValue: targetUserId,
+        whereClauseValueType: typeof targetUserId,
+        whereClauseValueLength: targetUserId?.length,
+        updateValues: updatePayload,
+      });
+
+      const updateResult = await supabase
         .from("profiles")
         .update(updatePayload)
         .eq("id", targetUserId)
-        .select("id,email,status,banned_at,banned_until,ban_reason,banned_by")
-        .single();
+        .select("id,email,status,banned_at,banned_until,ban_reason,banned_by");
 
-      if (error) throw error;
-      if (!updatedProfile || updatedProfile.status !== "banned" || !updatedProfile.banned_at) {
-        console.error("[BanModal] Profile update did not persist ban fields", {
+      console.log("[BanModal] UPDATE QUERY EXECUTED - Raw Result:", {
+        dataLength: updateResult.data?.length ?? 0,
+        dataArray: updateResult.data,
+        errorExists: updateResult.error !== null && updateResult.error !== undefined,
+        errorObject: updateResult.error,
+        statusCode: updateResult.status,
+      });
+
+      if (updateResult.error) {
+        console.error("[BanModal] UPDATE query returned error", {
           reportId: reportContext?.reportId ?? null,
           targetType: reportContext?.targetType ?? null,
           reporterId: reportContext?.reporterId ?? null,
           sellerUserId: reportContext?.sellerUserId ?? null,
           finalUserIdBeingBanned: targetUserId,
-          updatedProfile,
+          error: updateResult.error,
+          errorMessage: updateResult.error?.message,
+          errorDetails: updateResult.error?.details,
+          errorCode: updateResult.error?.code,
+          errorHint: (updateResult.error as any)?.hint,
         });
-        throw new Error("Ban update did not persist on the user profile.");
+        throw updateResult.error;
       }
 
-      console.log("[BanModal] Profile ban update succeeded", {
+      if (!updateResult.data || updateResult.data.length === 0) {
+        console.error("[BanModal] UPDATE returned 0 rows - WHERE clause matched no rows", {
+          reportId: reportContext?.reportId ?? null,
+          targetType: reportContext?.targetType ?? null,
+          reporterId: reportContext?.reporterId ?? null,
+          sellerUserId: reportContext?.sellerUserId ?? null,
+          finalUserIdBeingBanned: targetUserId,
+          targetUserIdType: typeof targetUserId,
+          targetUserIdLength: targetUserId?.length,
+          updatePayload,
+          possibleIssues: [
+            "WHERE id='${targetUserId}' matched 0 rows - profile does not exist",
+            "RLS policy blocked the update (admin role check failed)",
+            "Database trigger reverted the update",
+            "targetUserId is null/undefined",
+          ],
+        });
+        throw new Error(`Ban update affected 0 rows. Profile with id '${targetUserId}' may not exist or RLS policy blocked the update.`);
+      }
+
+      const updatedProfile = updateResult.data[0];
+      console.log("[BanModal] UPDATE succeeded - rows affected and returned:", {
         reportId: reportContext?.reportId ?? null,
         targetType: reportContext?.targetType ?? null,
         reporterId: reportContext?.reporterId ?? null,
@@ -145,6 +195,18 @@ export function BanModal({
         finalUserIdBeingBanned: targetUserId,
         updatedProfile,
       });
+
+      if (updatedProfile.status !== "banned" || !updatedProfile.banned_at) {
+        console.error("[BanModal] Ban fields not set correctly in UPDATE response", {
+          reportId: reportContext?.reportId ?? null,
+          targetType: reportContext?.targetType ?? null,
+          reporterId: reportContext?.reporterId ?? null,
+          sellerUserId: reportContext?.sellerUserId ?? null,
+          finalUserIdBeingBanned: targetUserId,
+          updatedProfile,
+        });
+        throw new Error(`Ban fields not set. Status: ${updatedProfile.status}, banned_at: ${updatedProfile.banned_at}`);
+      }
 
       // Log admin action
       const { error: actionError } = await supabase.from("admin_actions" as never).insert({
@@ -163,6 +225,13 @@ export function BanModal({
       setReason("");
       setDuration("7");
     } catch (err) {
+      console.error("[BanModal] EXCEPTION CAUGHT:", {
+        errorType: err instanceof Error ? err.constructor.name : typeof err,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        errorObject: err,
+        targetUserId,
+        sellerUserId: reportContext?.sellerUserId ?? null,
+      });
       toast.error(err instanceof Error ? err.message : "Failed to ban user");
     } finally {
       setSubmitting(false);

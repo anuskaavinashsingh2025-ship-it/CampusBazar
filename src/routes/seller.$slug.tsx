@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   BadgeCheck,
-  GraduationCap,
   Loader2,
   MessageSquare,
   Package,
@@ -26,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { ProductCard, type ProductCardModel } from "@/components/marketplace/product-card";
 import { ReportListingDialog } from "@/components/listing/report-listing-dialog";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 
 export const Route = createFileRoute("/seller/$slug")({
   head: () => ({
@@ -361,11 +361,12 @@ function SellerPage() {
     <div className="min-h-screen bg-gradient-to-b from-secondary/40 to-background">
       <header className="border-b bg-card/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <span className="font-bold tracking-tight">CampusBazar</span>
+          <Link
+            to="/"
+            aria-label="CampusBazar home"
+            className="flex items-center justify-center"
+          >
+            <CampusBazarLogo compact showText={false} />
           </Link>
           <Button asChild variant="ghost" size="sm">
             <Link to="/">

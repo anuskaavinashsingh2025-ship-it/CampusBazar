@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { GraduationCap, Loader2, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
 
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 
 // Create a Supabase client with detectSessionInUrl disabled for manual token handling
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -244,11 +245,13 @@ function ResetPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-secondary via-background to-accent/40 px-4 py-12">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-8 flex items-center justify-center gap-2">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <GraduationCap className="h-6 w-6" />
-          </span>
-          <span className="text-2xl font-bold tracking-tight text-foreground">CampusBazar</span>
+        <Link
+          to="/"
+          aria-label="CampusBazar home"
+          className="mb-8 flex flex-col items-center justify-center"
+        >
+          <CampusBazarLogo size="xl" />
+          <span className="sr-only">CampusBazar</span>
         </Link>
 
         <Card className="border-border/60 shadow-lg">

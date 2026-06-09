@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GraduationCap, Loader2, ShoppingCart, Tag } from "lucide-react";
+import { ArrowLeft, Loader2, ShoppingCart, Tag } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,7 @@ import { RecentlyViewedSection } from "@/components/listing/recently-viewed-sect
 import { ReportListingDialog } from "@/components/listing/report-listing-dialog";
 import { SellerQuickView } from "@/components/listing/seller-quick-view";
 import ListingActions from "@/components/listing/listing-actions";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 import { ShareListingButton } from "@/components/listing/share-listing-button";
 import { SimilarListings } from "@/components/listing/similar-listings";
 import type { Database } from "@/integrations/supabase/types";
@@ -229,11 +230,12 @@ function ProductDetailsPage() {
       <div className="min-h-screen bg-background">
         <header className="border-b bg-card/80 backdrop-blur">
           <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-            <Link to="/" className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <GraduationCap className="h-5 w-5" />
-              </span>
-              <span className="font-bold tracking-tight">CampusBazar</span>
+            <Link
+              to="/"
+              aria-label="CampusBazar home"
+              className="flex items-center gap-2"
+            >
+              <CampusBazarLogo compact showText />
             </Link>
             <Button asChild variant="ghost" size="sm">
               <Link to="/">
@@ -255,11 +257,12 @@ function ProductDetailsPage() {
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <span className="font-bold tracking-tight">CampusBazar</span>
+          <Link
+            to="/"
+            aria-label="CampusBazar home"
+            className="flex items-center justify-center"
+          >
+            <CampusBazarLogo compact showText={false} />
           </Link>
           <Button asChild variant="ghost" size="sm">
             <Link to="/">

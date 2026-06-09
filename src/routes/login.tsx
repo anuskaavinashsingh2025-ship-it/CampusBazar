@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { GraduationCap, Loader2, X, Eye, EyeOff } from "lucide-react";
+import { Loader2, X, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -252,11 +253,13 @@ function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-secondary via-background to-accent/40 px-4 py-12">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-8 flex items-center justify-center gap-2">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <GraduationCap className="h-6 w-6" />
-          </span>
-          <span className="text-2xl font-bold tracking-tight text-foreground">CampusBazar</span>
+        <Link
+          to="/"
+          aria-label="CampusBazar home"
+          className="mb-8 flex flex-col items-center justify-center gap-3"
+        >
+          <CampusBazarLogo size="xl" />
+          <span className="sr-only">CampusBazar</span>
         </Link>
 
         {savedLogins.length > 0 && (

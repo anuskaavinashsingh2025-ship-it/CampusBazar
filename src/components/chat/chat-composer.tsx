@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ImagePlus, Loader2, Send } from "lucide-react";
 
 import { useSendMessage, useSetTyping, useUploadChatImage } from "@/lib/chat";
@@ -51,20 +51,85 @@ type ChatComposerProps = {
   recipientId: string;
   listingTitle: string;
   disabled?: boolean;
+  /**
+   * Optional initial draft text. Used for the "Notes Request → Chat" flow
+   * so the message-input is pre-filled and the user can immediately
+   * start typing. The draft is not auto-sent — the user has to press
+   * Send / Enter.
+   */
+  initialDraft?: string;
+  /**
+   * When true, the textarea is auto-focused on mount. Used together with
+   * `initialDraft` so the Notes Request flow drops the user directly
+   * into a focused message input.
+   */
+  autoFocus?: boolean;
 };
 
-export function ChatComposer({
-  userId,
-  conversationId,
-  recipientId,
-  listingTitle,
-  disabled,
-}: ChatComposerProps) {
-  const [text, setText] = useState("");
+export type ChatComposerHandle = {
+  focus: () => void;
+};
+
+export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer(
+  {
+    userId,
+    conversationId,
+    recipientId,
+    listingTitle,
+    disabled,
+    initialDraft = "",
+    autoFocus = false,
+  },
+  ref,
+) {
+  const [text, setText] = useState(initialDraft);
   const fileRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const send = useSendMessage(userId);
   const upload = useUploadChatImage(userId);
   const setTyping = useSetTyping(userId, conversationId);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => {
+        const el = textareaRef.current;
+        if (el) {
+          el.focus();
+          // Move the caret to the end of the existing text so the
+          // user can keep typing where the draft left off.
+          const len = el.value.length;
+          try {
+            el.setSelectionRange(len, len);
+          } catch {
+            /* ignore */
+          }
+        }
+      },
+    }),
+    [],
+  );
+
+  // Auto-focus on mount (for "Notes Request → Chat" redirect).
+  useEffect(() => {
+    if (autoFocus) {
+      // Defer to the next tick so the layout is settled
+      const t = window.setTimeout(() => {
+        const el = textareaRef.current;
+        if (el) {
+          el.focus();
+          const len = el.value.length;
+          try {
+            el.setSelectionRange(len, len);
+          } catch {
+            /* ignore */
+          }
+        }
+      }, 50);
+      return () => window.clearTimeout(t);
+    }
+    return undefined;
+  }, [autoFocus]);
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -129,6 +194,7 @@ export function ChatComposer({
           )}
         </Button>
         <Textarea
+          ref={textareaRef}
           className="min-h-[44px] max-h-32 resize-none"
           placeholder="Type a message..."
           value={text}
@@ -164,4 +230,4 @@ export function ChatComposer({
       </p>
     </div>
   );
-}
+});

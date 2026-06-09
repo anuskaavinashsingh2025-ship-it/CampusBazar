@@ -6,10 +6,18 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   completeConversationForRequest,
   ensureConversationOnAccept,
+  getOrCreateConversation,
   invalidateChatQueries,
   type ChatMutationResult,
 } from "@/lib/chat";
-import { createNotification } from "@/lib/notifications";
+import {
+  createTransactionNotification,
+  ownerRequestActions,
+  acceptedActions,
+  rejectedActions,
+  completedActions,
+  viewListingUrl,
+} from "@/lib/transaction-notifications";
 import { enforceBanCheck } from "@/lib/ban-enforcement";
 
 export type RentalRequestStatus =
@@ -107,15 +115,25 @@ async function enrichRequests(rows: RentalRequestRow[]): Promise<RentalRequestDe
     }
   }
 
-  const profileMap = new Map<string, { display_name: string; avatar_url: string | null; hostel_block: string | null }>(
-    (profiles ?? []).map((p: { id: string; full_name: string | null; avatar_url: string | null; hostel_block: string | null }) => [
-      p.id,
-      {
-        display_name: p.full_name ?? "Student",
-        avatar_url: p.avatar_url,
-        hostel_block: p.hostel_block,
-      },
-    ]),
+  const profileMap = new Map<
+    string,
+    { display_name: string; avatar_url: string | null; hostel_block: string | null }
+  >(
+    (profiles ?? []).map(
+      (p: {
+        id: string;
+        full_name: string | null;
+        avatar_url: string | null;
+        hostel_block: string | null;
+      }) => [
+        p.id,
+        {
+          display_name: p.full_name ?? "Student",
+          avatar_url: p.avatar_url,
+          hostel_block: p.hostel_block,
+        },
+      ],
+    ),
   );
 
   return rows.map((r) => {
@@ -218,17 +236,35 @@ export function useCreateRentalRequest() {
         .single();
       if (error) throw error;
 
-      const buyerDetails = input.buyerName
-        ? ` from ${input.buyerName}${input.buyerHostel ? ` (${input.buyerHostel})` : ""}`
-        : "";
-      await createNotification({
-        userId: input.sellerId,
-        title: "Rental Request Received",
-        description: `You received a rental request for "${input.rentalTitle}"${buyerDetails}.`,
+      const conversationId = await getOrCreateConversation({
+        buyerId: input.buyerId,
+        sellerId: input.sellerId,
+        contextType: "rental",
+        contextId: input.rentalId,
+        requestId: data.id,
+        listingTitle: input.rentalTitle,
+      });
+      const listingUrl = viewListingUrl("rentals", input.rentalId);
+
+      await createTransactionNotification({
+        receiverId: input.sellerId,
+        senderId: input.buyerId,
+        title: "New Rental Request",
+        description: "Someone wants to rent your item.",
         priority: "important",
         module: "rentals",
         actionUrl: "/requests",
-        metadata: { requestId: data.id, rentalId: input.rentalId },
+        actions: ownerRequestActions({
+          conversationId,
+          listingUrl,
+          acceptLabel: "Accept Request",
+          rejectLabel: "Reject Request",
+        }),
+        conversationId,
+        relatedEntityId: data.id,
+        listingId: input.rentalId,
+        requestId: data.id,
+        renterId: input.buyerId,
       });
 
       return data;
@@ -283,26 +319,11 @@ export function useUpdateRentalRequest() {
         if (listingErr) throw listingErr;
       }
 
-      if (input.notifyUserId && input.notificationTitle && input.notificationDescription) {
-        try {
-          await createNotification({
-            userId: input.notifyUserId,
-            title: input.notificationTitle,
-            description: input.notificationDescription,
-            priority: input.status === "rejected" ? "important" : "informational",
-            module: "rentals",
-            actionUrl: "/requests",
-            metadata: { requestId: input.requestId, rentalId: input.rentalId },
-          });
-        } catch (notifErr) {
-          console.error(
-            "[useUpdateRentalRequest] Notification creation failed (non-blocking):",
-            notifErr,
-          );
-        }
-      }
-
-      if (input.status === "accepted" || input.status === "completed") {
+      if (
+        input.status === "accepted" ||
+        input.status === "completed" ||
+        input.status === "rejected"
+      ) {
         console.log("[useUpdateRentalRequest] Status is accepted/completed, fetching request row");
         const { data: reqRow } = await supabase
           .from(REQUESTS_TABLE)
@@ -333,15 +354,73 @@ export function useUpdateRentalRequest() {
               contextId: row.rental_id,
               requestId: input.requestId,
               listingTitle: title,
-              notifyBuyer: true,
+              notifyBuyer: false,
             });
             console.log("[useUpdateRentalRequest] Conversation ID returned:", conversationId);
-          } else {
+          } else if (input.status === "completed") {
+            conversationId = await getOrCreateConversation({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "rental",
+              contextId: row.rental_id,
+              requestId: input.requestId,
+              listingTitle: title,
+            });
             await completeConversationForRequest({
               buyerId: row.buyer_id,
               contextType: "rental",
               contextId: row.rental_id,
             });
+          } else {
+            conversationId = await getOrCreateConversation({
+              buyerId: row.buyer_id,
+              sellerId: row.seller_id,
+              contextType: "rental",
+              contextId: row.rental_id,
+              requestId: input.requestId,
+              listingTitle: title,
+            });
+          }
+
+          if (input.notifyUserId && conversationId) {
+            const listingUrl = viewListingUrl("rentals", row.rental_id);
+            try {
+              await createTransactionNotification({
+                receiverId: input.notifyUserId,
+                senderId: row.seller_id,
+                title:
+                  input.status === "completed"
+                    ? "Transaction Completed"
+                    : input.status === "rejected"
+                      ? "Request Declined"
+                      : "Request Accepted",
+                description:
+                  input.status === "completed"
+                    ? "This transaction has been completed successfully."
+                    : input.status === "rejected"
+                      ? "The owner declined your request."
+                      : "Your request has been accepted by the owner.",
+                priority: "important",
+                module: "rentals",
+                actionUrl: input.status === "rejected" ? listingUrl : `/chats/${conversationId}`,
+                actions:
+                  input.status === "completed"
+                    ? completedActions(`/chats/${conversationId}`)
+                    : input.status === "rejected"
+                      ? rejectedActions("rentals", listingUrl)
+                      : acceptedActions(conversationId, listingUrl),
+                conversationId,
+                relatedEntityId: input.requestId,
+                listingId: row.rental_id,
+                requestId: input.requestId,
+                renterId: row.buyer_id,
+              });
+            } catch (notifErr) {
+              console.error(
+                "[useUpdateRentalRequest] Notification creation failed (non-blocking):",
+                notifErr,
+              );
+            }
           }
         } else {
           console.error("[useUpdateRentalRequest] Request row not found for ID:", input.requestId);
