@@ -366,7 +366,12 @@ function RentDetailsPage() {
 
             <div className="flex flex-wrap gap-2">
               <ShareListingButton title={rental.title} />
-              <ReportListingDialog itemType="rental" itemId={rental.id} />
+              <ReportListingDialog
+                itemType="rental"
+                itemId={rental.id}
+                sellerUserId={rental.seller_id}
+                disabled={user?.id === rental.seller_id}
+              />
             </div>
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

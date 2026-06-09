@@ -9,6 +9,7 @@ import { isChatUnlockedForProductRequest } from "@/lib/product-requests";
 import { isChatUnlockedForRentalRequest } from "@/lib/rental-requests";
 import { isChatUnlockedForFoodOrder } from "@/lib/food-orders";
 import { isChatUnlockedForNotesPurchase } from "@/lib/notes-purchase-requests";
+import { checkBanStatus } from "@/lib/ban-enforcement";
 
 export type ChatContextType = "product" | "rental" | "food" | "notes";
 export type ConversationStatus = "active" | "archived" | "reported" | "completed";
@@ -650,6 +651,17 @@ export function useSendMessage(userId: string | null | undefined) {
       recipientId: string;
       listingTitle: string;
     }) => {
+      // Check ban status before sending message
+      if (userId) {
+        const banStatus = await checkBanStatus(userId);
+        if (banStatus.isBanned) {
+          throw new Error(banStatus.isPermanent 
+            ? "Your account has been permanently banned." 
+            : `Your account is banned until ${new Date(banStatus.bannedUntil!).toLocaleDateString()}.`
+          );
+        }
+      }
+
       const { data, error } = await supabase
         .from(MESSAGES_TABLE)
         .insert({
@@ -793,6 +805,17 @@ export function useSubmitChatReport(userId: string | null | undefined) {
       notifyAdmin?: boolean;
       listingTitle?: string;
     }) => {
+      // Check ban status before submitting chat report
+      if (userId) {
+        const banStatus = await checkBanStatus(userId);
+        if (banStatus.isBanned) {
+          throw new Error(banStatus.isPermanent 
+            ? "Your account has been permanently banned." 
+            : `Your account is banned until ${new Date(banStatus.bannedUntil!).toLocaleDateString()}.`
+          );
+        }
+      }
+
       const { error: reportErr } = await supabase.from(CHAT_REPORTS_TABLE).insert({
         conversation_id: input.conversationId,
         reporter_id: userId!,

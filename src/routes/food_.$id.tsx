@@ -267,7 +267,12 @@ function FoodDetailsPage() {
 
             <div className="flex flex-wrap gap-2">
               <ShareListingButton title={listing.product_name} />
-              <ReportListingDialog itemType="food" itemId={listing.id} />
+              <ReportListingDialog
+                itemType="food"
+                itemId={listing.id}
+                sellerUserId={listing.seller_id}
+                disabled={user?.id === listing.seller_id}
+              />
               <ListingActions
                 itemType="food"
                 itemId={listing.id}

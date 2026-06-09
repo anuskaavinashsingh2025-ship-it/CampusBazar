@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { ProductCard, type ProductCardModel } from "@/components/marketplace/product-card";
+import { ReportListingDialog } from "@/components/listing/report-listing-dialog";
 
 export const Route = createFileRoute("/seller/$slug")({
   head: () => ({
@@ -814,29 +815,7 @@ function SellerPage() {
                     Campus member
                   </span>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    if (!user) {
-                      toast.error("Please login to report seller.");
-                      return;
-                    }
-                    const reason = window.prompt("Reason:", "suspicious");
-                    if (!reason) return;
-                    const { error } = await supabase.from("reports" as never).insert({
-                      reporter_id: user.id,
-                      target_type: "seller",
-                      seller_user_id: seller.user_id,
-                      reason,
-                      details: null,
-                    } as never);
-                    if (error) toast.error(error.message);
-                    else toast.success("Seller reported.");
-                  }}
-                >
-                  Report seller
-                </Button>
+                <ReportListingDialog itemType="seller" itemId={seller.user_id} />
               </CardContent>
             </Card>
 

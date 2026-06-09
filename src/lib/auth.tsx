@@ -15,6 +15,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { bootstrapUserAccount } from "@/lib/supabase-account";
 import { saveLogin } from "@/lib/saved-login";
 import { checkBanStatus } from "@/lib/ban-enforcement";
+import { useNavigate } from "@tanstack/react-router";
 
 export type Profile = Tables<"profiles">;
 export type AppRole = "user" | "admin";
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
   const bootstrapInFlight = useRef<Set<string>>(new Set());
+  const navigate = useNavigate();
 
   const loadUserData = useCallback(async (authUser: User) => {
     if (!bootstrapInFlight.current.has(authUser.id)) {
@@ -67,12 +69,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { profile: profileData, roles: roleList } = await fetchProfileAndRoles(authUser);
       
-      // Check ban status
+      // Check ban status and redirect if banned
       if (profileData) {
         const banStatus = await checkBanStatus(authUser.id);
         if (banStatus.isBanned) {
-          console.log("[Auth] User is banned, setting profile with ban status");
-          // Profile will have ban status, UI will handle displaying banned state
+          console.log("[Auth] User is banned, redirecting to /banned");
+          setProfile(profileData);
+          setRoles(roleList);
+          // Redirect to banned page
+          navigate({ to: "/banned" as any });
+          return;
         }
       }
       
@@ -152,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [loadUserData]);
+  }, [loadUserData, navigate]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();

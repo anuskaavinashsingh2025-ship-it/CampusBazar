@@ -317,7 +317,12 @@ function ProductDetailsPage() {
 
             <div className="flex flex-wrap gap-2">
               <ShareListingButton title={product.title} />
-              <ReportListingDialog itemType="product" itemId={product.id} />
+              <ReportListingDialog
+                itemType="product"
+                itemId={product.id}
+                sellerUserId={product.seller_id}
+                disabled={user?.id === product.seller_id}
+              />
               <ListingActions
                 itemType="product"
                 itemId={product.id}
@@ -374,7 +379,7 @@ function ProductDetailsPage() {
           <DialogHeader>
             <DialogTitle>Make an Offer</DialogTitle>
             <DialogDescription>
-              Suggest a price for &quot;{product.title}&quot;. Listed at {priceLabel}.
+              Suggest a price for "{product.title}". Listed at {priceLabel}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

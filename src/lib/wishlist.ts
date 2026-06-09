@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-export type WishlistItemType = "product" | "rental" | "food" | "notes";
+export type WishlistItemType = "product" | "rental" | "food" | "notes" | "seller";
 
 const WISHLIST_TABLE = "wishlist_items" as unknown as keyof Database["public"]["Tables"];
 

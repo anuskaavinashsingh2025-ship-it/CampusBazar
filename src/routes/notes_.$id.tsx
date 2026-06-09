@@ -306,7 +306,12 @@ function NotesDetailsPage() {
 
             <div className="flex flex-wrap gap-2">
               <ShareListingButton title={listing.title} />
-              <ReportListingDialog itemType="notes" itemId={listing.id} />
+              <ReportListingDialog
+                itemType="notes"
+                itemId={listing.id}
+                sellerUserId={listing.seller_id}
+                disabled={user?.id === listing.seller_id}
+              />
               <ListingActions
                 itemType="notes"
                 itemId={listing.id}

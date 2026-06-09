@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { checkBanStatus } from "@/lib/ban-enforcement";
 
 const FEEDBACK_TABLE = "feedback" as unknown as keyof Database["public"]["Tables"];
 
@@ -84,6 +85,15 @@ export async function submitFeedback(params: {
   message: string;
   screenshotUrl?: string | null;
 }): Promise<FeedbackRow> {
+  // Check ban status before submitting feedback
+  const banStatus = await checkBanStatus(params.userId);
+  if (banStatus.isBanned) {
+    throw new Error(banStatus.isPermanent 
+      ? "Your account has been permanently banned." 
+      : `Your account is banned until ${new Date(banStatus.bannedUntil!).toLocaleDateString()}.`
+    );
+  }
+
   const payload = {
     user_id: params.userId,
     rating: params.rating,
