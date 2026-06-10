@@ -235,11 +235,9 @@ export function useUpdateNotesPurchase() {
               requestId: input.requestId,
               listingTitle: title,
             });
-            await completeConversationForRequest({
-              buyerId: row.buyer_id,
-              contextType: "notes",
-              contextId: row.notes_listing_id,
-            });
+            // Do NOT auto-archive chat on completion
+            // Chat remains active for post-completion communication
+            // User can manually archive when desired
           } else {
             conversationId = await getOrCreateConversation({
               buyerId: row.buyer_id,

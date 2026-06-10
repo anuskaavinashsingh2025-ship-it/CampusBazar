@@ -27,6 +27,10 @@ import { ProductCard, type ProductCardModel } from "@/components/marketplace/pro
 import { RentalCard, type RentalCardModel } from "@/components/marketplace/rental-card";
 import { ReportListingDialog } from "@/components/listing/report-listing-dialog";
 import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
+import {
+  useActiveRentalsForSeller,
+  usePendingReturnsForSeller,
+} from "@/lib/rental-lifecycle";
 
 export const Route = createFileRoute("/seller/$slug")({
   head: () => ({
@@ -46,7 +50,7 @@ function SellerPage() {
   const { slug } = Route.useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"products" | "rentals" | "reviews" | "completed">("products");
+  const [tab, setTab] = useState<"products" | "rentals" | "active_rentals" | "pending_returns" | "reviews" | "completed">("products");
 
   const { data: seller, isLoading } = useQuery({
     queryKey: ["seller", slug],
@@ -480,6 +484,9 @@ function SellerPage() {
     enabled: Boolean(seller?.user_id && userProfile),
   });
 
+  const { data: activeRentals = [] } = useActiveRentalsForSeller(seller?.user_id);
+  const { data: pendingReturns = [] } = usePendingReturnsForSeller(seller?.user_id);
+
   const { data: sellerMetrics } = useQuery({
     queryKey: ["seller_metrics", seller?.user_id],
     queryFn: async () => {
@@ -815,6 +822,8 @@ function SellerPage() {
               <TabsList>
                 <TabsTrigger value="products">Products ({products.length})</TabsTrigger>
                 <TabsTrigger value="rentals">Rentals ({rentals.length})</TabsTrigger>
+                <TabsTrigger value="active_rentals">Active Rentals ({activeRentals.length})</TabsTrigger>
+                <TabsTrigger value="pending_returns">Pending Returns ({pendingReturns.length})</TabsTrigger>
                 <TabsTrigger value="reviews">
                   Reviews ({sellerMetrics?.reviewsReceived ?? seller.rating_count})
                 </TabsTrigger>
@@ -863,6 +872,38 @@ function SellerPage() {
                   <Card className="border-dashed">
                     <CardContent className="py-12 text-center text-sm text-muted-foreground">
                       No active rentals listed yet.
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="active_rentals" className="mt-4">
+                {activeRentals.length ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {activeRentals.map((r: any) => (
+                      <RentalCard key={r.id} rental={r} />
+                    ))}
+                  </div>
+                ) : (
+                  <Card className="border-dashed">
+                    <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                      No active rentals.
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="pending_returns" className="mt-4">
+                {pendingReturns.length ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {pendingReturns.map((r: any) => (
+                      <RentalCard key={r.id} rental={r} />
+                    ))}
+                  </div>
+                ) : (
+                  <Card className="border-dashed">
+                    <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                      No pending returns.
                     </CardContent>
                   </Card>
                 )}

@@ -13,6 +13,11 @@ import {
   useCreateRentalRequest,
   useRentalRequestForListing,
 } from "@/lib/rental-requests";
+import {
+  useMarkAsRentedOut,
+  useReturnItem,
+  useConfirmReturn,
+} from "@/lib/rental-lifecycle";
 import { HOSTEL_BLOCKS } from "@/lib/hostel-blocks";
 import { useTrackListingView } from "@/lib/listing-views";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
@@ -62,7 +67,7 @@ type RentalRow = {
   category: string;
   custom_category: string | null;
   condition: string;
-  status: "available" | "rented_out" | "unavailable";
+  status: "available" | "rented_out" | "unavailable" | "active_rental" | "return_requested";
   seller_id: string;
   created_at: string;
   views_count?: number;
@@ -93,6 +98,14 @@ function RentDetailsPage() {
   const { id } = Route.useParams();
   const createRequest = useCreateRentalRequest();
   const { data: existingRequest } = useRentalRequestForListing(id, user?.id);
+  
+  // Lifecycle hooks
+  const markAsRentedOut = useMarkAsRentedOut();
+  const returnItem = useReturnItem();
+  const confirmReturn = useConfirmReturn();
+  
+  // Availability choice modal state
+  const [availabilityChoiceOpen, setAvailabilityChoiceOpen] = useState(false);
 
   const [requestOpen, setRequestOpen] = useState(false);
   const [durationPreset, setDurationPreset] = useState("7");
@@ -300,6 +313,42 @@ function RentDetailsPage() {
     );
   };
 
+  const handleMarkAsRentedOut = () => {
+    if (!existingRequest || !rental || !user) return;
+    markAsRentedOut.mutate({
+      requestId: existingRequest.id,
+      rentalId: rental.id,
+      sellerId: user.id,
+      renterId: existingRequest.buyer_id,
+      rentalTitle: rental.title,
+      durationDays: resolvedDurationDays,
+    });
+  };
+
+  const handleReturnItem = () => {
+    if (!existingRequest || !rental || !user) return;
+    returnItem.mutate({
+      requestId: existingRequest.id,
+      rentalId: rental.id,
+      renterId: user.id,
+      sellerId: rental.seller_id,
+      rentalTitle: rental.title,
+    });
+  };
+
+  const handleConfirmReturn = (makeAvailableAgain: boolean) => {
+    if (!existingRequest || !rental || !user) return;
+    confirmReturn.mutate({
+      requestId: existingRequest.id,
+      rentalId: rental.id,
+      sellerId: user.id,
+      renterId: existingRequest.buyer_id,
+      rentalTitle: rental.title,
+      makeAvailableAgain,
+    });
+    setAvailabilityChoiceOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
@@ -392,13 +441,55 @@ function RentDetailsPage() {
                 disabled={
                   rental.status !== "available" ||
                   existingRequest?.status === "pending" ||
-                  existingRequest?.status === "accepted"
+                  existingRequest?.status === "accepted" ||
+                  existingRequest?.status === "active_rental" ||
+                  existingRequest?.status === "return_requested"
                 }
               >
                 <CalendarRange className="h-4 w-4" />
                 {requestButtonLabel}
               </Button>
             </div>
+
+            {/* Lifecycle Actions */}
+            {user?.id === rental.seller_id && existingRequest?.status === "accepted" && (
+              <Button
+                className="w-full gap-2"
+                onClick={handleMarkAsRentedOut}
+                disabled={markAsRentedOut.isPending}
+              >
+                {markAsRentedOut.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                Mark as Rented Out
+              </Button>
+            )}
+
+            {user?.id === existingRequest?.buyer_id && rental.status === "active_rental" && (
+              <Button
+                className="w-full gap-2"
+                onClick={handleReturnItem}
+                disabled={returnItem.isPending}
+              >
+                {returnItem.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                Return Item
+              </Button>
+            )}
+
+            {user?.id === rental.seller_id && rental.status === "return_requested" && (
+              <Button
+                className="w-full gap-2"
+                onClick={() => setAvailabilityChoiceOpen(true)}
+                disabled={confirmReturn.isPending}
+              >
+                {confirmReturn.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                Confirm Return
+              </Button>
+            )}
           </div>
         </div>
 
@@ -508,6 +599,38 @@ function RentDetailsPage() {
               Send Request
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={availabilityChoiceOpen} onOpenChange={setAvailabilityChoiceOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rental Completed Successfully</DialogTitle>
+            <DialogDescription>
+              The item has been returned. Would you like to make it available again?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={() => handleConfirmReturn(true)}
+              disabled={confirmReturn.isPending}
+            >
+              {confirmReturn.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Make Available Again
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleConfirmReturn(false)}
+              disabled={confirmReturn.isPending}
+            >
+              {confirmReturn.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Keep Unavailable
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

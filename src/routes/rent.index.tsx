@@ -60,7 +60,7 @@ type RentalRow = {
   category: string;
   custom_category: string | null;
   condition: string;
-  status: "available" | "rented_out" | "unavailable";
+  status: "available" | "rented_out" | "unavailable" | "active_rental" | "return_requested";
   seller_id: string;
   created_at: string;
 };
