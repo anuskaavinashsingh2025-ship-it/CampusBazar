@@ -907,7 +907,7 @@ function SellerPage() {
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Products</h3>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        {soldProducts.map((p) => (
+                        {soldProducts.map((p: ProductCardModel & { updated_at: string }) => (
                           <div key={p.id} className="relative">
                             <Link to="/product/$id" params={{ id: p.id }}>
                               <div className="opacity-75 transition-opacity hover:opacity-100">
@@ -931,7 +931,7 @@ function SellerPage() {
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Rentals</h3>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        {completedRentals.map((r) => (
+                        {completedRentals.map((r: RentalCardModel & { updated_at: string }) => (
                           <div key={r.id} className="relative">
                             <Link to="/rent/$id" params={{ id: r.id }}>
                               <div className="opacity-75 transition-opacity hover:opacity-100">
@@ -955,7 +955,7 @@ function SellerPage() {
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Notes</h3>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        {completedNotes.map((n) => (
+                        {completedNotes.map((n: ProductCardModel & { updated_at: string }) => (
                           <div key={n.id} className="relative">
                             <Link to="/notes/$id" params={{ id: n.id }}>
                               <div className="opacity-75 transition-opacity hover:opacity-100">
@@ -979,7 +979,7 @@ function SellerPage() {
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Food</h3>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        {completedFood.map((f) => (
+                        {completedFood.map((f: ProductCardModel & { updated_at: string }) => (
                           <div key={f.id} className="relative">
                             <Link to="/food/$id" params={{ id: f.id }}>
                               <div className="opacity-75 transition-opacity hover:opacity-100">
