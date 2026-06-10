@@ -195,15 +195,20 @@ function UploadRentalPage() {
       const rentalId = inserted.id as string;
       const bucket = "rental-images";
 
+      console.log("[Rental Upload] Uploading images:", { count: images.length, rentalId });
+      const uploadedPaths: string[] = [];
+
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
         const objectName = `${rentalId}/${i}-${file.name.replaceAll("/", "-")}`;
+        console.log(`[Rental Upload] Uploading image ${i + 1}/${images.length}:`, objectName);
 
         const { error: uploadErr } = await supabase.storage.from(bucket).upload(objectName, file, {
           upsert: false,
           contentType: file.type,
         });
         if (uploadErr) throw uploadErr;
+        uploadedPaths.push(objectName);
 
         const { error: imageErr } = await supabase.from(RENTAL_IMAGES_TABLE).insert({
           rental_id: rentalId,
@@ -211,7 +216,10 @@ function UploadRentalPage() {
           sort_index: i,
         } satisfies RentalImagesInsertable);
         if (imageErr) throw imageErr;
+        console.log(`[Rental Upload] Inserted image row ${i + 1}/${images.length}:`, { storage_path: objectName, sort_index: i });
       }
+
+      console.log("[Rental Upload] All images uploaded successfully:", uploadedPaths);
 
       await queryClient.invalidateQueries({ queryKey: ["rentals"] });
       toast.success("Rental uploaded!");

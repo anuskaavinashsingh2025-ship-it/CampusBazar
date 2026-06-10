@@ -20,7 +20,9 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { useRespondToNotesRequest } from "@/lib/notes-respond";
+import { createNotification } from "@/lib/notifications";
 import ListingActions from "@/components/listing/listing-actions";
+import { WishlistButton } from "@/components/wishlist/wishlist-button";
 import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 
 import { Button } from "@/components/ui/button";
@@ -128,6 +130,44 @@ function NotesHubPage() {
     );
   };
 
+  const handleMarkFulfilled = async (r: NotesRequestRow) => {
+    if (!user) {
+      navigate({ to: "/login" });
+      return;
+    }
+    if (user.id !== r.requester_id) {
+      toast.error("Only the request owner can mark it as fulfilled.");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from(NOTES_REQUESTS_TABLE)
+        .update({ status: "fulfilled" })
+        .eq("id", r.id);
+
+      if (error) throw error;
+
+      // Send notification to the request owner
+      await createNotification({
+        userId: user.id,
+        title: "Request Fulfilled",
+        description: "Your request has been marked as fulfilled and removed from public listings.",
+        priority: "informational",
+        module: "notes",
+        metadata: {
+          requestId: r.id,
+          subject: r.subject,
+        },
+      });
+
+      toast.success("Request marked as fulfilled");
+    } catch (error) {
+      console.error("[Mark Fulfilled] Error:", error);
+      toast.error("Failed to mark request as fulfilled");
+    }
+  };
+
   const { data: listings, isLoading: loadingListings } = useQuery({
     queryKey: ["notes", "listings"],
     queryFn: async () => {
@@ -140,7 +180,48 @@ function NotesHubPage() {
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return (data ?? []) as unknown as NotesListingRow[];
+      const rows = (data ?? []) as unknown as NotesListingRow[];
+      
+      // Fetch images for all listings
+      const ids = rows.map((r) => r.id);
+      const sellerIds = [...new Set(rows.map((r) => r.seller_id))];
+      
+      const [{ data: images }, { data: sellers }] = await Promise.all([
+        ids.length
+          ? supabase
+              .from("notes_assets")
+              .select("listing_id,storage_path,sort_index")
+              .eq("kind", "image")
+              .in("listing_id", ids)
+          : Promise.resolve({ data: [] }),
+        sellerIds.length
+          ? supabase
+              .from("seller_profiles")
+              .select("user_id,slug,display_name,avatar_url")
+              .in("user_id", sellerIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+      
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { listing_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.listing_id)) {
+          imageMap.set(
+            row.listing_id,
+            supabase.storage.from("notes-assets").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
+      }
+      
+      const sellerMap = new Map(
+        (sellers ?? []).map((s: any) => [s.user_id, { user_id: s.user_id, slug: s.slug, display_name: s.display_name, avatar_url: s.avatar_url }]),
+      );
+      
+      return rows.map((r) => ({
+        ...r,
+        coverUrl: imageMap.get(r.id) ?? null,
+        seller: sellerMap.get(r.seller_id),
+      }));
     },
     refetchInterval: 5000,
   });
@@ -322,41 +403,68 @@ function NotesHubPage() {
                 {filteredListings.map((l) => (
                   <Card
                     key={l.id}
-                    className="border-border/60 shadow-sm"
-                    onClick={() => navigate({ to: "/notes/$id", params: { id: l.id } })}
+                    className="overflow-hidden border-border/60 shadow-sm"
                   >
-                    <CardContent className="space-y-2 p-4">
-                      <div
-                        className="absolute right-2 top-2 z-20"
-                        onClick={(e) => e.stopPropagation()}
-                        role="presentation"
-                      >
-                        <ListingActions
-                          itemType="notes"
-                          itemId={l.id}
-                          ownerId={l.seller_id}
-                          onEdit={() => {
-                            console.log("[ListingActions] onEdit notes", l.id);
-                            window.location.assign(`/upload-notes?edit=${l.id}`);
-                          }}
-                        />
+                    <CardContent className="p-0">
+                      <div className="relative">
+                        <div
+                          className="absolute left-2 top-2 z-20"
+                          onClick={(e) => e.stopPropagation()}
+                          role="presentation"
+                        >
+                          <ListingActions
+                            itemType="notes"
+                            itemId={l.id}
+                            ownerId={l.seller_id}
+                            onEdit={() => {
+                              console.log("[ListingActions] onEdit notes", l.id);
+                              window.location.assign(`/upload-notes?edit=${l.id}`);
+                            }}
+                          />
+                        </div>
+                        <div
+                          className="cursor-pointer"
+                          onClick={() => navigate({ to: "/notes/$id", params: { id: l.id } })}
+                        >
+                          {(l as any).coverUrl ? (
+                            <img
+                              src={(l as any).coverUrl}
+                              alt={l.title}
+                              className="h-40 w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-40 w-full items-center justify-center bg-muted text-sm text-muted-foreground">
+                              No image
+                            </div>
+                          )}
+                        </div>
+                        <div
+                          className="absolute right-2 top-2 z-20"
+                          onClick={(e) => e.stopPropagation()}
+                          role="presentation"
+                        >
+                          <WishlistButton listingId={l.id} />
+                        </div>
                       </div>
-                      <div className="text-sm font-semibold">{l.title}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-2">
-                        {l.description}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">{l.category}</Badge>
-                        {l.is_free ? (
-                          <Badge variant="outline">Free</Badge>
-                        ) : (
-                          <Badge variant="outline">Paid</Badge>
-                        )}
-                        {l.is_digital ? (
-                          <Badge variant="outline">Digital</Badge>
-                        ) : (
-                          <Badge variant="outline">Physical</Badge>
-                        )}
+                      <div className="space-y-2 p-3">
+                        <div className="text-sm font-semibold">{l.title}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-2">
+                          {l.description}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary">{l.category}</Badge>
+                          {l.is_free ? (
+                            <Badge variant="outline">Free</Badge>
+                          ) : (
+                            <Badge variant="outline">Paid</Badge>
+                          )}
+                          {l.is_digital ? (
+                            <Badge variant="outline">Digital</Badge>
+                          ) : (
+                            <Badge variant="outline">Physical</Badge>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -379,21 +487,63 @@ function NotesHubPage() {
                 {filteredListings.map((l) => (
                   <Card
                     key={l.id}
-                    className="border-border/60 shadow-sm"
-                    onClick={() => navigate({ to: "/notes/$id", params: { id: l.id } })}
+                    className="overflow-hidden border-border/60 shadow-sm"
                   >
-                    <CardContent className="space-y-2 p-4">
-                      <div className="text-sm font-semibold">{l.title}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-2">
-                        {l.description}
+                    <CardContent className="p-0">
+                      <div className="relative">
+                        <div
+                          className="absolute left-2 top-2 z-20"
+                          onClick={(e) => e.stopPropagation()}
+                          role="presentation"
+                        >
+                          <ListingActions
+                            itemType="notes"
+                            itemId={l.id}
+                            ownerId={l.seller_id}
+                            onEdit={() => {
+                              console.log("[ListingActions] onEdit notes", l.id);
+                              window.location.assign(`/upload-notes?edit=${l.id}`);
+                            }}
+                          />
+                        </div>
+                        <div
+                          className="cursor-pointer"
+                          onClick={() => navigate({ to: "/notes/$id", params: { id: l.id } })}
+                        >
+                          {(l as any).coverUrl ? (
+                            <img
+                              src={(l as any).coverUrl}
+                              alt={l.title}
+                              className="h-40 w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-40 w-full items-center justify-center bg-muted text-sm text-muted-foreground">
+                              No image
+                            </div>
+                          )}
+                        </div>
+                        <div
+                          className="absolute right-2 top-2 z-20"
+                          onClick={(e) => e.stopPropagation()}
+                          role="presentation"
+                        >
+                          <WishlistButton listingId={l.id} />
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">{l.category}</Badge>
-                        <Badge variant="outline">
-                          {l.daily_rental_price != null
-                            ? `${formatInr(Number(l.daily_rental_price))} / day`
-                            : "—"}
-                        </Badge>
+                      <div className="space-y-2 p-3">
+                        <div className="text-sm font-semibold">{l.title}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-2">
+                          {l.description}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary">{l.category}</Badge>
+                          <Badge variant="outline">
+                            {l.daily_rental_price != null
+                              ? `${formatInr(Number(l.daily_rental_price))} / day`
+                              : "—"}
+                          </Badge>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -442,13 +592,19 @@ function NotesHubPage() {
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => toast.message("Mark fulfilled is coming soon")}
+                          onClick={() => handleMarkFulfilled(r)}
+                          disabled={r.status !== "open"}
                         >
                           Mark Fulfilled
                         </Button>
                         {r.status === "in_progress" && (
                           <Badge variant="outline" className="text-[10px]">
                             Chat opened
+                          </Badge>
+                        )}
+                        {r.status === "fulfilled" && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Fulfilled
                           </Badge>
                         )}
                       </div>

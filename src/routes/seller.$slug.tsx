@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { ProductCard, type ProductCardModel } from "@/components/marketplace/product-card";
+import { RentalCard, type RentalCardModel } from "@/components/marketplace/rental-card";
 import { ReportListingDialog } from "@/components/listing/report-listing-dialog";
 import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 
@@ -144,84 +145,339 @@ function SellerPage() {
   });
 
   const { data: rentals = [], isLoading: loadingRentals } = useQuery({
-    queryKey: ["seller_rentals", seller?.user_id],
+    queryKey: ["seller_rentals", seller?.user_id, userProfile?.id],
     queryFn: async () => {
       if (!seller) return [];
       const { data, error } = await supabase
         .from("rental_listings" as unknown as keyof Database["public"]["Tables"])
-        .select("id,title,rent_price_per_day,category,custom_category,status,created_at")
+        .select(
+          "id,title,rent_price_per_day,category,custom_category,condition,status,seller_id,created_at",
+        )
         .eq("seller_id", seller.user_id)
         .eq("status", "available")
         .order("created_at", { ascending: false })
         .limit(24);
       if (error) throw error;
-      return data ?? [];
+      const rows = data ?? [];
+      const ids = rows.map((r: { id: string }) => r.id);
+      if (!ids.length) return [];
+
+      const { data: images } = await supabase
+        .from("rental_images" as unknown as keyof Database["public"]["Tables"])
+        .select("rental_id,storage_path,sort_index")
+        .in("rental_id", ids);
+
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { rental_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.rental_id)) {
+          imageMap.set(
+            row.rental_id,
+            supabase.storage.from("rental-images").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
+      }
+
+      return rows.map(
+        (r: {
+          id: string;
+          title: string;
+          rent_price_per_day: number;
+          category: string;
+          custom_category: string | null;
+          condition: string;
+          seller_id: string;
+        }): RentalCardModel => ({
+          id: r.id,
+          title: r.title,
+          rent_price_per_day: Number(r.rent_price_per_day),
+          category: r.category,
+          custom_category: r.custom_category,
+          condition: r.condition,
+          seller: {
+            user_id: seller.user_id,
+            slug: seller.slug,
+            display_name: seller.display_name,
+            avatar_url: (userProfile?.avatar_url as string | null) ?? seller.avatar_url,
+            rating_avg: Number(seller.rating_avg),
+          },
+          coverImageUrl: imageMap.get(r.id) ?? null,
+        }),
+      );
     },
-    enabled: Boolean(seller?.user_id),
+    enabled: Boolean(seller?.user_id && userProfile),
   });
 
   const { data: soldProducts = [] } = useQuery({
-    queryKey: ["seller_sold", seller?.user_id],
+    queryKey: ["seller_sold", seller?.user_id, userProfile?.id],
     queryFn: async () => {
       if (!seller) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("product_listings" as unknown as keyof Database["public"]["Tables"])
-        .select("id,title,price,category,status,updated_at")
+        .select(
+          "id,title,price,category,custom_category,condition,urgent_sale,status,seller_id,updated_at",
+        )
         .eq("seller_id", seller.user_id)
         .eq("status", "sold")
         .order("updated_at", { ascending: false })
         .limit(12);
-      return data ?? [];
+      if (error) throw error;
+      const rows = data ?? [];
+      const ids = rows.map((r: { id: string }) => r.id);
+      if (!ids.length) return [];
+
+      const { data: images } = await supabase
+        .from("product_images" as unknown as keyof Database["public"]["Tables"])
+        .select("product_id,storage_path,sort_index")
+        .in("product_id", ids);
+
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { product_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.product_id)) {
+          imageMap.set(
+            row.product_id,
+            supabase.storage.from("product-images").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
+      }
+
+      return rows.map(
+        (p: {
+          id: string;
+          title: string;
+          price: number;
+          category: string;
+          custom_category: string | null;
+          condition: string;
+          urgent_sale: boolean;
+          seller_id: string;
+          updated_at: string;
+        }): ProductCardModel & { updated_at: string } => ({
+          id: p.id,
+          title: p.title,
+          price: Number(p.price),
+          category: p.category,
+          custom_category: p.custom_category,
+          condition: p.condition,
+          urgent_sale: p.urgent_sale,
+          seller: {
+            user_id: seller.user_id,
+            slug: seller.slug,
+            display_name: seller.display_name,
+            avatar_url: (userProfile?.avatar_url as string | null) ?? seller.avatar_url,
+            rating_avg: Number(seller.rating_avg),
+          },
+          coverImageUrl: imageMap.get(p.id) ?? null,
+          updated_at: p.updated_at,
+        }),
+      );
     },
-    enabled: Boolean(seller?.user_id),
+    enabled: Boolean(seller?.user_id && userProfile),
   });
 
   const { data: completedRentals = [] } = useQuery({
-    queryKey: ["seller_completed_rentals", seller?.user_id],
+    queryKey: ["seller_completed_rentals", seller?.user_id, userProfile?.id],
     queryFn: async () => {
       if (!seller) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("rental_listings" as unknown as keyof Database["public"]["Tables"])
-        .select("id,title,rent_price_per_day,category,updated_at")
+        .select(
+          "id,title,rent_price_per_day,category,custom_category,condition,status,seller_id,updated_at",
+        )
         .eq("seller_id", seller.user_id)
         .eq("status", "rented_out")
         .order("updated_at", { ascending: false })
         .limit(12);
-      return data ?? [];
+      if (error) throw error;
+      const rows = data ?? [];
+      const ids = rows.map((r: { id: string }) => r.id);
+      if (!ids.length) return [];
+
+      const { data: images } = await supabase
+        .from("rental_images" as unknown as keyof Database["public"]["Tables"])
+        .select("rental_id,storage_path,sort_index")
+        .in("rental_id", ids);
+
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { rental_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.rental_id)) {
+          imageMap.set(
+            row.rental_id,
+            supabase.storage.from("rental-images").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
+      }
+
+      return rows.map(
+        (r: {
+          id: string;
+          title: string;
+          rent_price_per_day: number;
+          category: string;
+          custom_category: string | null;
+          condition: string;
+          seller_id: string;
+          updated_at: string;
+        }): RentalCardModel & { updated_at: string } => ({
+          id: r.id,
+          title: r.title,
+          rent_price_per_day: Number(r.rent_price_per_day),
+          category: r.category,
+          custom_category: r.custom_category,
+          condition: r.condition,
+          seller: {
+            user_id: seller.user_id,
+            slug: seller.slug,
+            display_name: seller.display_name,
+            avatar_url: (userProfile?.avatar_url as string | null) ?? seller.avatar_url,
+            rating_avg: Number(seller.rating_avg),
+          },
+          coverImageUrl: imageMap.get(r.id) ?? null,
+          updated_at: r.updated_at,
+        }),
+      );
     },
-    enabled: Boolean(seller?.user_id),
+    enabled: Boolean(seller?.user_id && userProfile),
   });
 
   const { data: completedNotes = [] } = useQuery({
-    queryKey: ["seller_completed_notes", seller?.user_id],
+    queryKey: ["seller_completed_notes", seller?.user_id, userProfile?.id],
     queryFn: async () => {
       if (!seller) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("notes_listings" as unknown as keyof Database["public"]["Tables"])
-        .select("id,title,price,category,updated_at")
+        .select(
+          "id,title,price,category,custom_category,condition,is_digital,is_free,status,seller_id,updated_at",
+        )
         .eq("seller_id", seller.user_id)
         .eq("status", "sold")
         .order("updated_at", { ascending: false })
         .limit(12);
-      return data ?? [];
+      if (error) throw error;
+      const rows = data ?? [];
+      const ids = rows.map((r: { id: string }) => r.id);
+      if (!ids.length) return [];
+
+      const { data: images } = await supabase
+        .from("notes_assets" as unknown as keyof Database["public"]["Tables"])
+        .select("listing_id,storage_path,sort_index")
+        .eq("kind", "image")
+        .in("listing_id", ids);
+
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { listing_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.listing_id)) {
+          imageMap.set(
+            row.listing_id,
+            supabase.storage.from("notes-assets").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
+      }
+
+      return rows.map(
+        (p: {
+          id: string;
+          title: string;
+          price: number;
+          category: string;
+          custom_category: string | null;
+          condition: string;
+          is_digital: boolean;
+          is_free: boolean;
+          seller_id: string;
+          updated_at: string;
+        }): ProductCardModel & { updated_at: string } => ({
+          id: p.id,
+          title: p.title,
+          price: Number(p.price),
+          category: p.category,
+          custom_category: p.custom_category,
+          condition: p.condition,
+          urgent_sale: false,
+          seller: {
+            user_id: seller.user_id,
+            slug: seller.slug,
+            display_name: seller.display_name,
+            avatar_url: (userProfile?.avatar_url as string | null) ?? seller.avatar_url,
+            rating_avg: Number(seller.rating_avg),
+          },
+          coverImageUrl: imageMap.get(p.id) ?? null,
+          updated_at: p.updated_at,
+        }),
+      );
     },
-    enabled: Boolean(seller?.user_id),
+    enabled: Boolean(seller?.user_id && userProfile),
   });
 
   const { data: completedFood = [] } = useQuery({
-    queryKey: ["seller_completed_food", seller?.user_id],
+    queryKey: ["seller_completed_food", seller?.user_id, userProfile?.id],
     queryFn: async () => {
       if (!seller) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("food_listings" as unknown as keyof Database["public"]["Tables"])
-        .select("id,title,price,category,updated_at")
+        .select(
+          "id,product_name,brand_name,category,quantity,price,expiry_date,status,seller_id,updated_at",
+        )
         .eq("seller_id", seller.user_id)
         .eq("status", "sold")
         .order("updated_at", { ascending: false })
         .limit(12);
-      return data ?? [];
+      if (error) throw error;
+      const rows = data ?? [];
+      const ids = rows.map((r: { id: string }) => r.id);
+      if (!ids.length) return [];
+
+      const { data: images } = await supabase
+        .from("food_images" as unknown as keyof Database["public"]["Tables"])
+        .select("food_listing_id,storage_path,sort_index")
+        .in("food_listing_id", ids);
+
+      const imageMap = new Map<string, string>();
+      for (const img of images ?? []) {
+        const row = img as { food_listing_id: string; storage_path: string; sort_index: number };
+        if (!imageMap.has(row.food_listing_id)) {
+          imageMap.set(
+            row.food_listing_id,
+            supabase.storage.from("food-images").getPublicUrl(row.storage_path).data.publicUrl,
+          );
+        }
+      }
+
+      return rows.map(
+        (p: {
+          id: string;
+          product_name: string;
+          brand_name: string;
+          category: string;
+          quantity: string;
+          price: number;
+          expiry_date: string;
+          seller_id: string;
+          updated_at: string;
+        }): ProductCardModel & { updated_at: string } => ({
+          id: p.id,
+          title: p.product_name,
+          price: Number(p.price),
+          category: p.category,
+          custom_category: null,
+          condition: "New",
+          urgent_sale: false,
+          seller: {
+            user_id: seller.user_id,
+            slug: seller.slug,
+            display_name: seller.display_name,
+            avatar_url: (userProfile?.avatar_url as string | null) ?? seller.avatar_url,
+            rating_avg: Number(seller.rating_avg),
+          },
+          coverImageUrl: imageMap.get(p.id) ?? null,
+          updated_at: p.updated_at,
+        }),
+      );
     },
-    enabled: Boolean(seller?.user_id),
+    enabled: Boolean(seller?.user_id && userProfile),
   });
 
   const { data: sellerMetrics } = useQuery({
@@ -598,26 +854,9 @@ function SellerPage() {
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
                 ) : rentals.length ? (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {(
-                      rentals as {
-                        id: string;
-                        title: string;
-                        rent_price_per_day: number;
-                        category: string;
-                      }[]
-                    ).map((r) => (
-                      <Link key={r.id} to="/rent/$id" params={{ id: r.id }}>
-                        <Card className="transition-shadow hover:shadow-md">
-                          <CardContent className="p-4">
-                            <h3 className="font-semibold">{r.title}</h3>
-                            <p className="text-sm text-muted-foreground">{r.category}</p>
-                            <p className="mt-2 font-bold text-primary">
-                              {formatInr(Number(r.rent_price_per_day))}/day
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </Link>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {rentals.map((r: RentalCardModel) => (
+                      <RentalCard key={r.id} rental={r} />
                     ))}
                   </div>
                 ) : (
@@ -667,29 +906,23 @@ function SellerPage() {
                   {soldProducts.length > 0 && (
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Products</h3>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {(
-                          soldProducts as {
-                            id: string;
-                            title: string;
-                            price: number;
-                            category: string;
-                            updated_at: string;
-                          }[]
-                        ).map((p) => (
-                          <Card key={p.id} className="opacity-75">
-                            <CardContent className="p-4">
-                              <h4 className="font-semibold">{p.title}</h4>
-                              <p className="text-sm text-muted-foreground">{p.category}</p>
-                              <p className="mt-2 font-bold text-primary">
-                                {formatInr(Number(p.price))}
-                              </p>
-                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                                <Badge variant="outline">Completed</Badge>
-                                <span>{new Date(p.updated_at).toLocaleDateString()}</span>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {soldProducts.map((p) => (
+                          <div key={p.id} className="relative">
+                            <Link to="/product/$id" params={{ id: p.id }}>
+                              <div className="opacity-75 transition-opacity hover:opacity-100">
+                                <ProductCard product={p} />
                               </div>
-                            </CardContent>
-                          </Card>
+                            </Link>
+                            <div className="absolute left-2 top-2 z-30">
+                              <Badge variant="secondary" className="text-[10px]">
+                                Completed
+                              </Badge>
+                            </div>
+                            <div className="absolute bottom-2 right-2 z-30 text-[10px] text-muted-foreground">
+                              {new Date(p.updated_at).toLocaleDateString()}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -697,29 +930,23 @@ function SellerPage() {
                   {completedRentals.length > 0 && (
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Rentals</h3>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {(
-                          completedRentals as {
-                            id: string;
-                            title: string;
-                            rent_price_per_day: number;
-                            category: string;
-                            updated_at: string;
-                          }[]
-                        ).map((r) => (
-                          <Card key={r.id} className="opacity-75">
-                            <CardContent className="p-4">
-                              <h4 className="font-semibold">{r.title}</h4>
-                              <p className="text-sm text-muted-foreground">{r.category}</p>
-                              <p className="mt-2 font-bold text-primary">
-                                {formatInr(Number(r.rent_price_per_day))}/day
-                              </p>
-                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                                <Badge variant="outline">Completed</Badge>
-                                <span>{new Date(r.updated_at).toLocaleDateString()}</span>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {completedRentals.map((r) => (
+                          <div key={r.id} className="relative">
+                            <Link to="/rent/$id" params={{ id: r.id }}>
+                              <div className="opacity-75 transition-opacity hover:opacity-100">
+                                <RentalCard rental={r} />
                               </div>
-                            </CardContent>
-                          </Card>
+                            </Link>
+                            <div className="absolute left-2 top-2 z-30">
+                              <Badge variant="secondary" className="text-[10px]">
+                                Completed
+                              </Badge>
+                            </div>
+                            <div className="absolute bottom-2 right-2 z-30 text-[10px] text-muted-foreground">
+                              {new Date(r.updated_at).toLocaleDateString()}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -727,29 +954,23 @@ function SellerPage() {
                   {completedNotes.length > 0 && (
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Notes</h3>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {(
-                          completedNotes as {
-                            id: string;
-                            title: string;
-                            price: number;
-                            category: string;
-                            updated_at: string;
-                          }[]
-                        ).map((n) => (
-                          <Card key={n.id} className="opacity-75">
-                            <CardContent className="p-4">
-                              <h4 className="font-semibold">{n.title}</h4>
-                              <p className="text-sm text-muted-foreground">{n.category}</p>
-                              <p className="mt-2 font-bold text-primary">
-                                {formatInr(Number(n.price))}
-                              </p>
-                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                                <Badge variant="outline">Completed</Badge>
-                                <span>{new Date(n.updated_at).toLocaleDateString()}</span>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {completedNotes.map((n) => (
+                          <div key={n.id} className="relative">
+                            <Link to="/notes/$id" params={{ id: n.id }}>
+                              <div className="opacity-75 transition-opacity hover:opacity-100">
+                                <ProductCard product={n} />
                               </div>
-                            </CardContent>
-                          </Card>
+                            </Link>
+                            <div className="absolute left-2 top-2 z-30">
+                              <Badge variant="secondary" className="text-[10px]">
+                                Completed
+                              </Badge>
+                            </div>
+                            <div className="absolute bottom-2 right-2 z-30 text-[10px] text-muted-foreground">
+                              {new Date(n.updated_at).toLocaleDateString()}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -757,29 +978,23 @@ function SellerPage() {
                   {completedFood.length > 0 && (
                     <div>
                       <h3 className="mb-3 text-sm font-semibold">Completed Food</h3>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {(
-                          completedFood as {
-                            id: string;
-                            title: string;
-                            price: number;
-                            category: string;
-                            updated_at: string;
-                          }[]
-                        ).map((f) => (
-                          <Card key={f.id} className="opacity-75">
-                            <CardContent className="p-4">
-                              <h4 className="font-semibold">{f.title}</h4>
-                              <p className="text-sm text-muted-foreground">{f.category}</p>
-                              <p className="mt-2 font-bold text-primary">
-                                {formatInr(Number(f.price))}
-                              </p>
-                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                                <Badge variant="outline">Completed</Badge>
-                                <span>{new Date(f.updated_at).toLocaleDateString()}</span>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {completedFood.map((f) => (
+                          <div key={f.id} className="relative">
+                            <Link to="/food/$id" params={{ id: f.id }}>
+                              <div className="opacity-75 transition-opacity hover:opacity-100">
+                                <ProductCard product={f} />
                               </div>
-                            </CardContent>
-                          </Card>
+                            </Link>
+                            <div className="absolute left-2 top-2 z-30">
+                              <Badge variant="secondary" className="text-[10px]">
+                                Completed
+                              </Badge>
+                            </div>
+                            <div className="absolute bottom-2 right-2 z-30 text-[10px] text-muted-foreground">
+                              {new Date(f.updated_at).toLocaleDateString()}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>

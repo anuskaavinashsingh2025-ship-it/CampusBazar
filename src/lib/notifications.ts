@@ -127,21 +127,32 @@ export async function createNotification(input: {
     if (!prefs[moduleKey]) return null;
   }
 
-  const { data, error } = await supabase
-    .from(NOTIFICATIONS_TABLE)
-    .insert({
-      user_id: input.userId,
+ const { error } = await supabase
+  .from(NOTIFICATIONS_TABLE)
+  .insert({
+    user_id: input.userId,
+    title: input.title,
+    description: input.description,
+    priority: input.priority ?? "informational",
+    module: input.module,
+    action_url: input.actionUrl ?? null,
+    metadata: input.metadata ?? {},
+  });
+
+const data = null;
+  if (error) {
+    console.error("[Notification] Insert failed:", {
+      error: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      userId: input.userId,
       title: input.title,
-      description: input.description,
-      priority: input.priority ?? "informational",
       module: input.module,
-      action_url: input.actionUrl ?? null,
-      metadata: input.metadata ?? {},
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return data;
+    });
+    throw error;
+  }
+  return null;
 }
 
 export function useNotifications(userId: string | null | undefined) {
@@ -153,14 +164,24 @@ export function useNotifications(userId: string | null | undefined) {
   });
 }
 
+// Singleton registry to prevent duplicate channel subscriptions
+const notificationChannels = new Map<string, ReturnType<typeof supabase.channel>>();
+
 export function useNotificationRealtime(userId: string | null | undefined) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!userId) return;
 
+    const channelName = `notifications:${userId}`;
+
+    // Return early if channel already exists (singleton pattern)
+    if (notificationChannels.has(channelName)) {
+      return;
+    }
+
     const channel = supabase
-      .channel(`notifications:${userId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -176,7 +197,12 @@ export function useNotificationRealtime(userId: string | null | undefined) {
       )
       .subscribe();
 
+    // Store channel in registry
+    notificationChannels.set(channelName, channel);
+
     return () => {
+      // Remove from registry and cleanup channel
+      notificationChannels.delete(channelName);
       void supabase.removeChannel(channel);
     };
   }, [queryClient, userId]);

@@ -22,7 +22,6 @@ import {
   timeAgo,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
- 
   useNotifications,
   type NotificationModule,
   type NotificationRow,
@@ -71,7 +70,6 @@ function NotificationsPage() {
   const { data: notifications = [], isLoading } = useNotifications(user?.id);
   const markRead = useMarkNotificationRead(user?.id);
   const markAllRead = useMarkAllNotificationsRead(user?.id);
-  useNotificationRealtime(user?.id);
 
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");

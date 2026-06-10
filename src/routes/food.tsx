@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
+import { useRespondToFoodRequest } from "@/lib/food-respond";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
 import { CampusBazarLogo } from "@/components/brand/campusbazar-logo";
 import ListingActions from "@/components/listing/listing-actions";
@@ -52,6 +53,7 @@ type FoodListingRow = {
 
 type FoodRequestRow = {
   id: string;
+  requester_id: string;
   product_name: string;
   category: string;
   quantity_needed: string;
@@ -77,6 +79,7 @@ const FOOD_REQUESTS_TABLE = "food_requests" as unknown as keyof Database["public
 function FoodHubPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const respond = useRespondToFoodRequest();
   const [mode, setMode] = useState<"sell" | "requests">("sell");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -146,7 +149,7 @@ function FoodHubPage() {
       const { data, error } = await supabase
         .from(FOOD_REQUESTS_TABLE)
         .select(
-          "id,product_name,category,quantity_needed,description,urgency_level,status,created_at",
+          "id,requester_id,product_name,category,quantity_needed,description,urgency_level,status,created_at",
         )
         .eq("status", "open")
         .order("created_at", { ascending: false })
@@ -215,6 +218,36 @@ function FoodHubPage() {
     }
     if (formMode === "sell") navigate({ to: "/upload-food" });
     else navigate({ to: "/upload-food-request" });
+  };
+
+  const handleRespond = (r: FoodRequestRow) => {
+    if (!user) {
+      navigate({ to: "/login" });
+      return;
+    }
+    if (user.id === r.requester_id) {
+      toast.error("You cannot respond to your own food request.");
+      return;
+    }
+    respond.mutate(
+      {
+        requestId: r.id,
+        requestCreatorId: r.requester_id,
+        productName: r.product_name,
+        responderId: user.id,
+      },
+      {
+        onSuccess: ({ conversationId }) => {
+          if (conversationId) {
+            navigate({
+              to: "/chats/$id",
+              params: { id: conversationId },
+              search: { focus: "1" } as never,
+            });
+          }
+        },
+      },
+    );
   };
 
   return (
@@ -340,6 +373,21 @@ function FoodHubPage() {
                     >
                       <CardContent className="flex gap-3 p-3">
                         <div className="relative shrink-0">
+                          <div
+                            className="absolute left-2 top-2 z-20"
+                            onClick={(e) => e.stopPropagation()}
+                            role="presentation"
+                          >
+                            <ListingActions
+                              itemType="food"
+                              itemId={l.id}
+                              ownerId={l.seller_id}
+                              onEdit={() => {
+                                console.log("[ListingActions] onEdit food", l.id);
+                                window.location.assign(`/upload-food?edit=${l.id}`);
+                              }}
+                            />
+                          </div>
                           {l.coverUrl ? (
                             <img
                               src={l.coverUrl}
@@ -356,6 +404,13 @@ function FoodHubPage() {
                           >
                             {expiry.label}
                           </span>
+                          <div
+                            className="absolute right-2 top-2 z-20"
+                            onClick={(e) => e.stopPropagation()}
+                            role="presentation"
+                          >
+                            <WishlistButton listingId={l.id} />
+                          </div>
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
@@ -366,25 +421,6 @@ function FoodHubPage() {
                               <p className="text-xs text-muted-foreground">
                                 {l.brand_name} · {l.quantity}
                               </p>
-                            </div>
-                            <div onClick={(e) => e.stopPropagation()} role="presentation">
-                              <WishlistButton listingId={l.id} />
-                            </div>
-                            {/* Listing actions placeholder */}
-                            <div
-                              className="absolute right-2 top-2 z-20"
-                              onClick={(e) => e.stopPropagation()}
-                              role="presentation"
-                            >
-                              <ListingActions
-                                itemType="food"
-                                itemId={l.id}
-                                ownerId={l.seller_id}
-                                onEdit={() => {
-                                  console.log("[ListingActions] onEdit food", l.id);
-                                  window.location.assign(`/upload-food?edit=${l.id}`);
-                                }}
-                              />
                             </div>
                           </div>
                           <p className="mt-1 text-base font-bold text-sky-700">
@@ -476,14 +512,23 @@ function FoodHubPage() {
                           size="sm"
                           variant="outline"
                           className="flex-1"
-                          onClick={() => toast.message("Response flow coming soon")}
+                          onClick={() => handleRespond(r)}
+                          disabled={respond.isPending || (!!user && user.id === r.requester_id)}
                         >
-                          I Have This
+                          {respond.isPending ? (
+                            <>
+                              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              Opening chat…
+                            </>
+                          ) : (
+                            "I Have This"
+                          )}
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => toast.message("Chat coming soon")}
+                          onClick={() => handleRespond(r)}
+                          disabled={respond.isPending || (!!user && user.id === r.requester_id)}
                         >
                           <MessageSquare className="h-4 w-4" />
                         </Button>

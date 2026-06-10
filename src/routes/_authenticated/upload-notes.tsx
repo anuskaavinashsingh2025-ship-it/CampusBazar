@@ -231,17 +231,21 @@ function UploadNotesPage() {
       }
 
       if (previewImages.length > 0) {
+        console.log("[Notes Upload] Uploading images:", { count: previewImages.length, listingId });
         await supabase.from(NOTES_ASSETS_TABLE).delete().eq("listing_id", listingId as never);
         const bucket = "notes-assets";
         const images = previewImages.slice(0, 5);
+        const uploadedPaths: string[] = [];
         for (let i = 0; i < images.length; i++) {
           const file = images[i];
           const objectName = `${listingId}/${i}-${file.name.replaceAll("/", "-")}`;
+          console.log(`[Notes Upload] Uploading image ${i + 1}/${images.length}:`, objectName);
           const { error: imgUploadErr } = await supabase.storage.from(bucket).upload(objectName, file, {
             upsert: true,
             contentType: file.type,
           });
           if (imgUploadErr) throw imgUploadErr;
+          uploadedPaths.push(objectName);
 
           const { error: imgMetaErr } = await supabase.from(NOTES_ASSETS_TABLE).insert({
             listing_id: listingId,
@@ -250,7 +254,9 @@ function UploadNotesPage() {
             sort_index: i,
           } satisfies NotesAssetInsertable);
           if (imgMetaErr) throw imgMetaErr;
+          console.log(`[Notes Upload] Inserted image row ${i + 1}/${images.length}:`, { storage_path: objectName, sort_index: i });
         }
+        console.log("[Notes Upload] All images uploaded successfully:", uploadedPaths);
       }
 
       await queryClient.invalidateQueries({ queryKey: ["notes"] });

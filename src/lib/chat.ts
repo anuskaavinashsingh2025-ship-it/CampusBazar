@@ -464,14 +464,26 @@ export function useParticipantTrust(userId: string | null | undefined) {
   });
 }
 
+// Singleton registries to prevent duplicate channel subscriptions
+const messageChannels = new Map<string, ReturnType<typeof supabase.channel>>();
+const conversationChannels = new Map<string, ReturnType<typeof supabase.channel>>();
+const presenceChannels = new Map<string, ReturnType<typeof supabase.channel>>();
+
 export function useMessageRealtime(conversationId: string | undefined) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!conversationId) return;
 
+    const channelName = `messages:${conversationId}`;
+
+    // Return early if channel already exists (singleton pattern)
+    if (messageChannels.has(channelName)) {
+      return;
+    }
+
     const channel = supabase
-      .channel(`messages:${conversationId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -508,7 +520,12 @@ export function useMessageRealtime(conversationId: string | undefined) {
       )
       .subscribe();
 
+    // Store channel in registry
+    messageChannels.set(channelName, channel);
+
     return () => {
+      // Remove from registry and cleanup channel
+      messageChannels.delete(channelName);
       void supabase.removeChannel(channel);
     };
   }, [conversationId, queryClient]);
@@ -520,15 +537,27 @@ export function useConversationRealtime(userId: string | null | undefined) {
   useEffect(() => {
     if (!userId) return;
 
+    const channelName = `conversations:${userId}`;
+
+    // Return early if channel already exists (singleton pattern)
+    if (conversationChannels.has(channelName)) {
+      return;
+    }
+
     const channel = supabase
-      .channel(`conversations:${userId}`)
+      .channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
         void queryClient.invalidateQueries({ queryKey: conversationsQueryKey(userId) });
         void queryClient.invalidateQueries({ queryKey: unreadChatsQueryKey(userId) });
       })
       .subscribe();
 
+    // Store channel in registry
+    conversationChannels.set(channelName, channel);
+
     return () => {
+      // Remove from registry and cleanup channel
+      conversationChannels.delete(channelName);
       void supabase.removeChannel(channel);
     };
   }, [userId, queryClient]);
@@ -564,8 +593,15 @@ export function usePresenceRealtime(otherUserId: string | undefined) {
   useEffect(() => {
     if (!otherUserId) return;
 
+    const channelName = `presence:${otherUserId}`;
+
+    // Return early if channel already exists (singleton pattern)
+    if (presenceChannels.has(channelName)) {
+      return;
+    }
+
     const channel = supabase
-      .channel(`presence:${otherUserId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -580,7 +616,12 @@ export function usePresenceRealtime(otherUserId: string | undefined) {
       )
       .subscribe();
 
+    // Store channel in registry
+    presenceChannels.set(channelName, channel);
+
     return () => {
+      // Remove from registry and cleanup channel
+      presenceChannels.delete(channelName);
       void supabase.removeChannel(channel);
     };
   }, [otherUserId, queryClient]);
